@@ -4,7 +4,31 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>行政流程與交接｜工作看板</title>
-<link rel="stylesheet" href="style.css"><script src="app.js" defer></script>
+<link rel="stylesheet" href="style.css"><script src="flow-board.js" defer></script>
+<style>
+[hidden]{display:none!important}
+.workhead h2{font-size:1.75rem}
+.view-switch{display:inline-flex;padding:3px;background:#e9efea;border:1px solid var(--line);border-radius:11px;gap:3px}
+.view-switch button{border:0;background:transparent;min-height:37px;padding:.35rem .72rem;font-size:.9rem}
+.view-switch button[aria-pressed=true]{background:white;color:var(--accent);box-shadow:0 1px 4px #15332825}
+.flow-hint{margin:-4px 0 14px;color:var(--muted);font-size:.88rem}
+.flow-map{display:flex;align-items:stretch;list-style:none;padding:15px;margin:0 0 16px;overflow-x:auto;border:1px solid var(--line);background:#eef3ed;border-radius:14px}
+.flow-step{display:flex;align-items:center;flex:1 0 170px;min-width:0}
+.flow-step:last-child{flex-basis:146px}
+.flow-node{width:100%;align-self:stretch;text-align:left;min-height:110px;border-color:#c9dbd0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;padding:10px 11px;overflow-wrap:anywhere}
+.flow-node strong{line-height:1.3}
+.flow-node[aria-pressed=true]{background:#dff3e8;border:2px solid var(--accent);padding:9px 10px}
+.flow-num{font-weight:800;font-size:.76rem;color:#fff;background:var(--accent);border-radius:6px;padding:1px 6px;letter-spacing:.07em}
+.flow-meta{font-size:.78rem;color:var(--muted);white-space:nowrap}
+.flow-tag{font-size:.75rem;color:#794507;background:#fff0d7;padding:0 6px;border-radius:5px}
+.flow-arrow{position:relative;flex:0 0 24px;height:2px;background:#688978}
+.flow-arrow::after{content:"";position:absolute;right:2px;top:-3px;width:6px;height:6px;border-top:2px solid #688978;border-right:2px solid #688978;transform:rotate(45deg)}
+.group{scroll-margin-top:12px}
+.flow-map[hidden]+.detail-label{display:none}
+.detail-label{color:var(--accent);font-size:.78rem;font-weight:800;letter-spacing:.08em;margin:0 0 7px}
+@media(max-width:720px){.flow-map{flex-direction:column;padding:10px 14px;overflow:visible}.flow-step,.flow-step:last-child{flex:auto;flex-direction:column}.flow-node{min-height:52px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:9px;row-gap:2px;padding:8px 10px;font-size:.9rem}.flow-node[aria-pressed=true]{padding:7px 9px}.flow-tag{grid-column:2;justify-self:start}.flow-arrow{width:2px;flex:0 0 9px;transform:rotate(90deg);height:2px;width:9px;flex-basis:2px;margin:4px 0}.workhead{gap:8px}.flow-hint{margin:0 0 10px}}
+@media(max-width:345px){.flow-node{grid-template-columns:auto minmax(0,1fr)}.flow-meta{grid-column:2;white-space:normal}}
+</style>
 </head>
 <body>
 <header class="mast"><div class="wrap top"><span class="brand"><span aria-hidden="true">▤</span> 行政工作台</span><div class="tools"><button id="backup">備份／匯入</button></div></div></header>
@@ -18,7 +42,10 @@
 <div class="notice"><span aria-hidden="true">ⓘ</span><div><strong>資料只存在目前的瀏覽器</strong>。網站網址可公開開啟，但輸入內容不會上傳或跨裝置同步。請勿在此記錄證件號碼、電話或照護資料；換機前先匯出備份。</div></div>
 <section id="stats" class="stats" aria-label="工作摘要"></section>
 <section class="work">
-<div class="workhead"><div><div class="eyebrow">工作總覽</div><h2>流程看板</h2></div><div class="filter"><label><span class="sr">搜尋</span><input type="search" id="query" placeholder="搜尋項目、主責、接手人"></label><label><span class="sr">篩選狀態</span><select id="filter"><option value="">全部項目</option><option>待分工</option><option>待開始</option><option>進行中</option><option>待交接</option><option>已完成</option><option>已逾期</option></select></label></div></div>
+<div class="workhead"><div><div class="eyebrow">工作總覽</div><h2>流程看板</h2></div><div class="view-switch" role="group" aria-label="顯示方式"><button type="button" id="flowMode" aria-pressed="true">流程圖</button><button type="button" id="listMode" aria-pressed="false">全部清單</button></div><div class="filter"><label><span class="sr">搜尋</span><input type="search" id="query" placeholder="搜尋項目、主責、接手人"></label><label><span class="sr">篩選狀態</span><select id="filter"><option value="">全部項目</option><option>待分工</option><option>待開始</option><option>進行中</option><option>待交接</option><option>已完成</option><option>已逾期</option></select></label></div></div>
+<p class="flow-hint">箭頭表示目前的區塊排列。點選任一節點，查看分工與工作進度。</p>
+<ol id="flowMap" class="flow-map" aria-label="行政流程圖" hidden></ol>
+<p class="detail-label">區塊明細</p>
 <div id="board"></div>
 </section>
 <footer>預設流程只是盤點起點，不代表公司現行分工。請依實際作業確認並調整。</footer>
