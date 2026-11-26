@@ -70,7 +70,7 @@ export function seedCanvas(board){
  for(const c of result.cards)c.y=Math.min(12000,c.y);
  return checkedCanvas(result);
 }
-export function mountCanvas(seed){
+export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
  const scroll=$('canvasScroll'),surface=$('canvasSurface'),cards=$('canvasCards'),svg=$('canvasLinks'),status=$('canvasStatus'),hint=$('canvasHint'),dialog=$('canvasDialog'),form=$('canvasForm'),err=$('canvasError');
  let model={version:1,cards:[],links:[]},revision=null,busy=false,port=null,openingRev=null,editing=null,latestSeed=seed,first=true,gesture=null;
  const nodes=new Map();let observer,cloud;
@@ -121,7 +121,7 @@ export function mountCanvas(seed){
   for(const select of rowBox.querySelectorAll('select'))fillOwners(select,select.value);
   rosterStatus.textContent='已加入下拉選單。儲存圖卡後會同步。';return true;
  }
- function setStatus(s){status.textContent=s;}
+ function setStatus(s){status.textContent=s;onStatus(s);}
  const act=(label,fn,cls)=>{const b=E('button',label,cls);b.type='button';b.addEventListener('click',fn);return b;};
  function can(){if(revision===null){setStatus('尚未連線，暫時不能儲存。');return false;}if(busy){setStatus('正在儲存，請稍候。');return false;}return true;}
  async function save(next,expected=revision){
@@ -129,7 +129,7 @@ export function mountCanvas(seed){
   if(expected!==revision){setStatus('看板剛更新，未覆蓋。請關閉後重新編輯。');return false;}
   busy=true;setStatus('正在儲存…');
   try{let v=checkedCanvas(next),p=JSON.stringify(v);if(new TextEncoder().encode(p).length>300000)throw Error('畫布已接近容量上限。');let r=await cloud.save(p,expected);
-   if(r>=revision){model=v;revision=r;draw();}setStatus('已同步');return true;
+   if(r>=revision){model=v;revision=r;draw();onChange(v);}setStatus('已同步');return true;
   }catch(e){if(e.code==='conflict')setStatus('別人剛更新看板，這次沒有覆蓋。請再試一次。');else setStatus(e.code?'未能儲存，請檢查連線再試。':e.message);draw();return false;}
   finally{busy=false;}
  }
@@ -263,8 +263,8 @@ export function mountCanvas(seed){
  $('canvasRemoveEdge').onclick=()=>{const ix=$('canvasEdgeList').value;if(ix==='')return;const v=copy(model);v.links.splice(Number(ix),1);save(v);};
  cloud=connect({status(_mode,message){setStatus(message);},snapshot({rev,payload}){
   if(revision!==null&&rev<revision)return;
-  try{const next=rev===0?seedCanvas(latestSeed):checkedCanvas(JSON.parse(payload));if(gesture&&rev===revision)return;if(gesture)gesture=null;model=next;revision=rev;if(port&&!model.cards.some(c=>c.id===port.id))port=null;draw();if(first){first=false;if(scroll.clientWidth<620&&model.cards.some(c=>c.x===300))scroll.scrollLeft=260;}setStatus(rev===0?'已帶入原流程。移動、編輯或連線後會儲存畫布。':'已同步');}
+  try{const next=rev===0?seedCanvas(latestSeed):checkedCanvas(JSON.parse(payload));if(gesture&&rev===revision)return;if(gesture)gesture=null;model=next;revision=rev;if(port&&!model.cards.some(c=>c.id===port.id))port=null;draw();onChange(model);if(first){first=false;if(scroll.clientWidth<620&&model.cards.some(c=>c.x===300))scroll.scrollLeft=260;}setStatus(rev===0?'已帶入原流程。移動、編輯或連線後會儲存畫布。':'已同步');}
   catch(e){setStatus(e.message);}
  }},{derive:canvasDocId});
- return {show(){edges();},seed(v){latestSeed=v;}};
+ return {show(){edges();},seed(v){latestSeed=v;},edit(id){const card=model.cards.find(c=>c.id===id);if(card)open(card);}};
 }
