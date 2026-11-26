@@ -1,4 +1,5 @@
 import { connect } from './sync.mjs';
+import { mountCanvas } from './canvas.mjs';
 const $=id=>document.getElementById(id);
 const el=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 
@@ -58,7 +59,7 @@ const needOwner=i=>!i.owner&&i.status!=='已完成';
 function matches(i,v){return !v||(v==='已逾期'?late(i):v==='待分工'?i.status===v||needOwner(i):i.status===v);}
 function btn(label,fn,cls,title){const n=el('button',label,cls);n.type='button';if(title){n.title=title;n.setAttribute('aria-label',title);}n.addEventListener('click',fn);return n;}
 
-let selectedGroup=null, view='flow';
+let selectedGroup=null, view='canvas', canvas;
 
 const lane=g=>g.flowLane??(g.id==='g4'?'side':'main');
 let routeObserver;
@@ -111,6 +112,11 @@ function drawFlow(){
 }
 function render(){
  if(!state.groups.some(g=>g.id===selectedGroup))selectedGroup=state.groups[0]?.id??null;
+ $('canvasMode').setAttribute('aria-pressed',String(view==='canvas'));
+ $('canvasPanel').hidden=view!=='canvas';
+ $('legacyPanel').hidden=view==='canvas';
+ $('oldActions').hidden=view==='canvas';
+ if(view==='canvas'){if(!canvas&&syncStatus==='ready')canvas=mountCanvas(state);else canvas?.seed(state);canvas?.show();}
  drawFlow();
  const filter=$('filter').value;
  const q=$('query').value.trim().toLocaleLowerCase();
@@ -201,6 +207,7 @@ form.addEventListener('submit',e=>{e.preventDefault();editError.textContent='';s
 for(const n of document.querySelectorAll('[data-close]'))n.addEventListener('click',()=>n.closest('dialog').close());
 $('newItem').addEventListener('click',()=>openItem());
 $('newGroup').addEventListener('click',()=>openGroup());
+$('canvasMode').addEventListener('click',()=>{view='canvas';render();});
 $('flowMode').addEventListener('click',()=>{view='flow';render();});
 $('listMode').addEventListener('click',()=>{view='list';render();});
 $('filter').addEventListener('change',render);$('query').addEventListener('input',render);
