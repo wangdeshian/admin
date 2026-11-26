@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>行政流程與交接｜連結共用版</title>
+<link rel="stylesheet" href="../style.css"><script type="module" src="board.mjs"></script>
+<style>
+[hidden]{display:none!important}
+.workhead h2{font-size:1.75rem}
+.view-switch{display:inline-flex;padding:3px;background:#e9efea;border:1px solid var(--line);border-radius:11px;gap:3px}
+.view-switch button{border:0;background:transparent;min-height:37px;padding:.35rem .72rem;font-size:.9rem}
+.view-switch button[aria-pressed=true]{background:white;color:var(--accent);box-shadow:0 1px 4px #15332825}
+.flow-hint{margin:-4px 0 14px;color:var(--muted);font-size:.88rem}
+.flow-map{display:grid;position:relative;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(36px,.45fr);column-gap:clamp(7px,2.6vw,30px);padding:24px clamp(10px,4.2vw,50px);margin:0 0 18px;border:1px solid #d9e5f1;border-radius:16px;background:radial-gradient(circle,#c1d5e7 1px,transparent 1.3px) 1px 1px/16px 16px,#f8fbff;overflow:hidden}
+.map-main,.map-side{list-style:none;margin:0;padding:0;min-width:0}
+.map-main{grid-column:2;grid-row:1}
+.map-side{grid-column:1;grid-row:1;padding-top:clamp(60px,9vw,90px);display:flex;flex-direction:column;gap:13px}
+.map-rail{grid-column:3;grid-row:1;position:relative}
+.map-step{min-width:0}
+.map-node,.map-add{position:relative;z-index:1;width:100%;min-height:82px;border:1px solid #9dbfe2;border-radius:15px;background:#fff;color:#183e67;text-align:left;padding:9px clamp(7px,1.7vw,18px);display:flex;flex-direction:column;justify-content:center;gap:3px;overflow-wrap:anywhere;box-shadow:0 4px 12px #29507c0e}
+.map-node:hover,.map-node[aria-pressed=true]{background:#e8f3ff;border-color:#2e68a5;box-shadow:inset 0 0 0 1px #2e68a5}
+.map-side .map-node{background:#f2f8ff}
+.map-side .map-node[aria-pressed=true]{background:#e0eeff}
+.map-node strong{line-height:1.3;font-size:clamp(.94rem,2.2vw,1.17rem)}
+.map-num{font-size:.72rem;font-weight:800;letter-spacing:.06em;color:#2b649c}
+.map-meta{font-size:.74rem;color:#4c6681}
+.map-add{min-height:48px;border-style:dashed;border-radius:12px;align-items:center;text-align:center;box-shadow:none;background:#f9fcff;font-size:.83rem}
+.map-arrow{display:block;position:relative;width:2px;height:28px;margin:0 auto;background:#5282b5}
+.map-arrow::after{content:"";position:absolute;bottom:2px;left:-3px;width:6px;height:6px;border-bottom:2px solid #5282b5;border-right:2px solid #5282b5;transform:rotate(45deg)}
+.map-route{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:#5282b5;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.map-return{position:absolute;z-index:1;top:var(--return-y,50%);right:2px;transform:translateY(-50%);writing-mode:vertical-rl;min-height:0;padding:6px 3px;color:#2a6096;font-size:.75rem;white-space:nowrap;background:#f8fbff;border-color:#b9d2ed;border-radius:7px}
+.group{scroll-margin-top:12px}
+.flow-map[hidden]+.detail-label{display:none}
+.detail-label{color:var(--accent);font-size:.78rem;font-weight:800;letter-spacing:.08em;margin:0 0 7px}
+@media(max-width:720px){.workhead{gap:8px}.flow-hint{margin:0 0 10px}.flow-map{grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 36px}.map-side{padding-top:60px}}
+</style>
+</head>
+<body>
+<header class="mast"><div class="wrap top"><span class="brand"><span aria-hidden="true">▤</span> 行政工作台 · 連結共用版</span><div class="tools"><button id="login" type="button" hidden>用 Google 登入</button><button id="logout" type="button" hidden>登出</button><button id="backup" hidden>備份／匯入</button></div></div></header>
+<div class="wrap notice" id="cloudStatus" role="status">正在連接共用看板…</div>
+<main class="wrap" id="boardMain" hidden>
+<section class="hero">
+<div class="eyebrow">WORKFLOW DESK <span></span> 分工・交接・追蹤</div>
+<h1>行政流程與交接</h1>
+<p>把工作拆成流程區塊，釐清每一步誰負責、誰接手，以及下一步要做什麼。</p>
+<div class="hero-actions"><button class="primary" id="newItem">＋ 新增工作項目</button><button id="newGroup">＋ 新增流程區塊</button></div>
+</section>
+<div class="notice"><span aria-hidden="true">ⓘ</span><div>拿到完整連結的人都能免登入查看、修改或備份看板。請勿填寫個資、客戶資料、照護資訊或其他不宜公開的內容。</div></div>
+<section id="stats" class="stats" aria-label="工作摘要"></section>
+<section class="work">
+<div class="workhead"><div><div class="eyebrow">工作總覽</div><h2>流程看板</h2></div><div class="view-switch" role="group" aria-label="顯示方式"><button type="button" id="flowMode" aria-pressed="true">流程圖</button><button type="button" id="listMode" aria-pressed="false">全部清單</button></div><div class="filter"><label><span class="sr">搜尋</span><input type="search" id="query" placeholder="搜尋項目、主責、接手人"></label><label><span class="sr">篩選狀態</span><select id="filter"><option value="">全部項目</option><option>待分工</option><option>待開始</option><option>進行中</option><option>待交接</option><option>已完成</option><option>已逾期</option></select></label></div></div>
+<p class="flow-hint">中間是主流程，左側是獨立區塊，右側箭頭從最後一步繞回起點。點方框可看工作與分工。</p>
+<div id="flowMap" class="flow-map" role="region" aria-label="行政流程圖" hidden></div>
+<p class="detail-label">區塊明細</p>
+<div id="board"></div>
+</section>
+<footer>預設流程只是盤點起點，不代表公司現行分工。請依實際作業確認並調整。</footer>
+</main>
+<dialog id="editor" aria-labelledby="editTitle"><form id="form"><div class="dialoghead"><h2 id="editTitle"></h2><button type="button" data-close aria-label="關閉">✕</button></div><div id="fields" class="fields"></div><p id="editError" class="error" role="alert"></p><div class="dialogfoot"><button type="button" data-close>取消</button><button class="primary" type="submit">儲存</button></div></form></dialog>
+<dialog id="backupDialog" aria-labelledby="backupTitle"><div class="dialoghead"><h2 id="backupTitle">備份與還原</h2><button type="button" data-close aria-label="關閉">✕</button></div><p>匯出會下載目前整份看板。匯入會取代所有人看到的整份共用看板。請勿匯入含私人或敏感資訊的備份，並先匯出目前的共用看板。</p><p id="backupError" class="error" role="alert"></p><div class="dialogfoot"><button id="exportBtn">匯出 JSON</button><button class="primary" id="importBtn">匯入備份</button><input type="file" id="backupFile" accept=".json,application/json" hidden></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
