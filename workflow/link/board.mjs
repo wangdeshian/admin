@@ -1,6 +1,6 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { mountCanvas } from './canvas.mjs?v=cardRead8';
-import { mountWorkload } from './workload.mjs?v=workKinds7';
+import { mountCanvas } from './canvas.mjs?v=kindTabs9';
+import { mountWorkload } from './workload.mjs?v=kindTabs9';
 const $=id=>document.getElementById(id);
 const statuses=['待分工','待開始','進行中','待交接','已完成'];
 const seed=[

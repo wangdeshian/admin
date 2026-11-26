@@ -1,5 +1,5 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { checkedReference, workKinds } from './case-reference.mjs?v=workKinds7';
+import { checkedReference, workKinds } from './case-reference.mjs?v=kindTabs9';
 const $=id=>document.getElementById(id);
 const E=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const NS='http://www.w3.org/2000/svg';
@@ -46,11 +46,11 @@ export function arrowDistance([x,y],[X,Y]){
 }
 export function canvasDocId(key){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('admin-workflow-canvas-v1:'+key)).then(b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));}
 export function checkedCanvas(x){
- if(!x||![1,2,3,4].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
+ if(!x||![1,2,3,4,5].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
  const ids=new Set(),seen=new Set();
  const roster=x.roster??[];
  if(!Array.isArray(roster)||roster.length>80||!roster.every(validName)||new Set(roster).size!==roster.length)throw Error('行政名單格式不正確。');
- const people=new Set(roster);let hasWorkKinds=false;
+ const people=new Set(roster);let hasWorkKinds=false,hasNewKinds=false;
  const cards=x.cards.map(c=>{if(!c||typeof c.id!=='string'||!/^[-a-zA-Z0-9_]{1,90}$/.test(c.id)||ids.has(c.id)||typeof c.title!=='string'||!c.title.trim()||c.title.length>120||typeof c.body!=='string'||c.body.length>1600||!['x','y'].every(k=>Number.isInteger(c[k])&&c[k]>=0&&c[k]<=12000))throw Error('圖卡資料格式不正確。');ids.add(c.id);
   const card={id:c.id,title:c.title,body:c.body,x:c.x,y:c.y};
   if(c.assignees!==undefined){
@@ -59,12 +59,12 @@ export function checkedCanvas(x){
   }
   if(c.kinds!==undefined){
    if(!Array.isArray(c.kinds)||c.kinds.length!==workLines(c.body).length||!c.kinds.every(ks=>Array.isArray(ks)&&ks.length<=workKinds.length&&ks.every(k=>workKinds.includes(k))&&ks.length===new Set(ks).size))throw Error('工作項目的大類格式不正確。');
-   if(c.kinds.some(ks=>ks.length)){hasWorkKinds=true;card.kinds=c.kinds.map(ks=>workKinds.filter(k=>ks.includes(k)));}
+   if(c.kinds.some(ks=>ks.length)){hasWorkKinds=true;hasNewKinds ||= c.kinds.some(ks=>ks.includes('招募函')||ks.includes('國外引進'));card.kinds=c.kinds.map(ks=>workKinds.filter(k=>ks.includes(k)));}
   }
   return card;});
  const links=x.links.map(e=>{if(!e||!ids.has(e.from)||!ids.has(e.to)||e.from===e.to||!Object.hasOwn(ports,e.a)||!Object.hasOwn(ports,e.b))throw Error('箭頭資料格式不正確。');const k=[e.from,e.a,e.to,e.b].join('|');if(seen.has(k))throw Error('箭頭重複。');seen.add(k);return {from:e.from,a:e.a,to:e.to,b:e.b};});
  const reference=x.caseReference==null?null:checkedReference(x.caseReference);
- return {version:hasWorkKinds||x.version===4?4:reference||x.version===3?3:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{}),...(reference?{caseReference:reference}:{})};
+ return {version:hasNewKinds||x.version===5?5:hasWorkKinds||x.version===4?4:reference||x.version===3?3:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{}),...(reference?{caseReference:reference}:{})};
 }
 export function seedCanvas(board){
  const result={version:1,cards:[],links:[]};let main=0,side=0,y=36,ys=100,prev;

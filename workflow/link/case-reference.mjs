@@ -1,5 +1,5 @@
 export const caseKinds=['入境後','續聘','廢止','承接轉換','離境返鄉','護居展延'];
-export const workKinds=['基本文件',...caseKinds,'其他'];
+export const workKinds=['基本文件','招募函','國外引進',...caseKinds,'其他'];
 const $=id=>document.getElementById(id);
 const E=(tag,text,cls)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(cls)node.className=cls;return node;};
 const date=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;

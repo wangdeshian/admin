@@ -1,4 +1,4 @@
-import { mountCaseReference, workKinds } from './case-reference.mjs?v=workKinds7';
+import { mountCaseReference, workKinds } from './case-reference.mjs?v=kindTabs9';
 const $=id=>document.getElementById(id);
 const el=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const percent=new Intl.NumberFormat('zh-TW',{style:'percent',maximumFractionDigits:1});
