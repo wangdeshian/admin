@@ -217,7 +217,7 @@ $('backupFile').addEventListener('change',async e=>{
  try{
   if(f.size>10000000)throw Error('備份檔案太大。');
   const v=checked(JSON.parse(await f.text()));
-  if(!confirm('將以 '+v.groups.length+' 個區塊、'+v.items.length+' 個工作項目取代所有成員共用的看板資料。確定匯入？'))return;
+  if(!confirm('將以 '+v.groups.length+' 個區塊、'+v.items.length+' 個工作項目取代目前的雲端看板資料。確定匯入？'))return;
   if(await save(v,err,importRevision)){$('backupDialog').close();$('query').value='';$('filter').value='';render();toast('已匯入備份');}
  }catch(e){err.textContent=e instanceof SyntaxError?'這不是可讀取的 JSON 備份。':e.message;}
 });
@@ -242,7 +242,7 @@ cloud=connect({
   try{
    if(revision!==null&&rev<revision)return;
    state=rev===0?initial():checked(JSON.parse(payload));revision=rev;
-   updateAccess('ready',rev===0?'尚未有共用紀錄。可從「備份／匯入」帶入原本的備份，或直接開始新增。':'已連線。指定成員看到的是同一份看板。');render();
-  }catch{updateAccess('error','共用資料格式無法讀取，未更動任何資料。');}
+   updateAccess('ready',rev===0?'尚未有雲端紀錄。可從「備份／匯入」帶入原本的備份，或直接開始新增。':'已連線。手機和電腦登入同一帳號即可看見同一份紀錄。');render();
+  }catch{updateAccess('error','雲端資料格式無法讀取，未更動任何資料。');}
  }
 });

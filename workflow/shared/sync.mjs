@@ -2,7 +2,7 @@ import { config } from './firebase-config.mjs';
 const unavailable=()=>Object.assign(new Error('Unavailable'),{code:'unavailable'});
 export function connect(ui){
  const api={signedIn:false,login:async()=>{},logout:async()=>{},save:async()=>{throw unavailable();}};
- if(!config){queueMicrotask(()=>ui.status('unconfigured','共用版尚未啟用，原有看板不受影響。'));return api;}
+ if(!config){queueMicrotask(()=>ui.status('unconfigured','雲端版尚未啟用，原有看板不受影響。'));return api;}
  boot().catch(()=>ui.status('error','Google 登入元件載入失敗，請重新整理或稍後再試。'));
  return api;
  async function boot(){
@@ -23,7 +23,7 @@ export function connect(ui){
   const decode=s=>s.exists()?s.data():{rev:0,payload:''};
   a.onAuthStateChanged(auth,async user=>{
    const g=++generation;stop?.();stop=undefined;api.signedIn=!!user;
-   if(!user){ui.status('locked','請用已授權的公司 Google 帳號登入。');return;}
+   if(!user){ui.status('locked','請用你的 Google 帳號登入。');return;}
    ui.status('loading','正在查驗帳號權限…');
    try {
     const first=await f.getDocFromServer(ref);if(g!==generation)return;

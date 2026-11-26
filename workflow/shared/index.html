@@ -46,7 +46,7 @@
 <p>把工作拆成流程區塊，釐清每一步誰負責、誰接手，以及下一步要做什麼。</p>
 <div class="hero-actions"><button class="primary" id="newItem">＋ 新增工作項目</button><button id="newGroup">＋ 新增流程區塊</button></div>
 </section>
-<div class="notice"><span aria-hidden="true">ⓘ</span><div>這是公司共用看板。儲存會更新所有成員看到的資料；請勿記錄證件號碼、電話或照護資料。</div></div>
+<div class="notice"><span aria-hidden="true">ⓘ</span><div>這是個人雲端看板。用同一個 Google 帳號登入，手機和電腦會看到同一份紀錄。請勿記錄證件號碼、電話或照護資料。</div></div>
 <section id="stats" class="stats" aria-label="工作摘要"></section>
 <section class="work">
 <div class="workhead"><div><div class="eyebrow">工作總覽</div><h2>流程看板</h2></div><div class="view-switch" role="group" aria-label="顯示方式"><button type="button" id="flowMode" aria-pressed="true">流程圖</button><button type="button" id="listMode" aria-pressed="false">全部清單</button></div><div class="filter"><label><span class="sr">搜尋</span><input type="search" id="query" placeholder="搜尋項目、主責、接手人"></label><label><span class="sr">篩選狀態</span><select id="filter"><option value="">全部項目</option><option>待分工</option><option>待開始</option><option>進行中</option><option>待交接</option><option>已完成</option><option>已逾期</option></select></label></div></div>
@@ -58,7 +58,7 @@
 <footer>預設流程只是盤點起點，不代表公司現行分工。請依實際作業確認並調整。</footer>
 </main>
 <dialog id="editor" aria-labelledby="editTitle"><form id="form"><div class="dialoghead"><h2 id="editTitle"></h2><button type="button" data-close aria-label="關閉">✕</button></div><div id="fields" class="fields"></div><p id="editError" class="error" role="alert"></p><div class="dialogfoot"><button type="button" data-close>取消</button><button class="primary" type="submit">儲存</button></div></form></dialog>
-<dialog id="backupDialog" aria-labelledby="backupTitle"><div class="dialoghead"><h2 id="backupTitle">備份與還原</h2><button type="button" data-close aria-label="關閉">✕</button></div><p>匯出會下載目前整份看板。匯入會取代整份共用看板。建議先匯出共用版的備份。</p><p id="backupError" class="error" role="alert"></p><div class="dialogfoot"><button id="exportBtn">匯出 JSON</button><button class="primary" id="importBtn">匯入備份</button><input type="file" id="backupFile" accept=".json,application/json" hidden></div></dialog>
+<dialog id="backupDialog" aria-labelledby="backupTitle"><div class="dialoghead"><h2 id="backupTitle">備份與還原</h2><button type="button" data-close aria-label="關閉">✕</button></div><p>匯出會下載目前整份看板。匯入會取代整份雲端看板。建議先匯出雲端版的備份。</p><p id="backupError" class="error" role="alert"></p><div class="dialogfoot"><button id="exportBtn">匯出 JSON</button><button class="primary" id="importBtn">匯入備份</button><input type="file" id="backupFile" accept=".json,application/json" hidden></div></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
