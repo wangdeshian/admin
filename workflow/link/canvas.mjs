@@ -271,6 +271,15 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
    const tag=E('span',length+' px','cv-measure-tag');tag.style.left=left+'px';tag.style.top=top+'px';return tag;
   }));
  }
+ function fitSurface(){
+  if(!surface.getBoundingClientRect().width)return;
+  let width=845,height=540;
+  for(const node of nodes.values()){
+   width=Math.max(width,node.offsetLeft+node.offsetWidth+40);
+   height=Math.max(height,node.offsetTop+node.offsetHeight+40);
+  }
+  surface.style.width=width+'px';surface.style.height=height+'px';
+ }
  function draw(){
   showGuides();observer?.disconnect();cards.replaceChildren();nodes.clear();
   surface.style.width=Math.max(845,...model.cards.map(c=>c.x+305))+'px';surface.style.height=Math.max(540,...model.cards.map(c=>c.y+260))+'px';
@@ -280,12 +289,23 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
    const header=E('div',null,'cv-card-head'),grip=act('⠿',()=>{},'cv-grip');grip.setAttribute('aria-label','移動圖卡：'+c.title);grip.title='拖曳自動對齊。按住 Shift 可自由移動，也可用方向鍵微調';
    const edit=act('編輯',()=>open(c));edit.setAttribute('aria-label','編輯圖卡：'+c.title);
    header.append(grip,E('h3',c.title),edit);n.append(header);
-   if(c.assignees?.some(Boolean)){
-    const tasks=E('ul',null,'cv-card-tasks');workLines(c.body).forEach((line,i)=>{
-     const item=E('li');item.append(E('span',line||' '));
-     if(c.assignees[i])item.append(E('small',c.assignees[i],'cv-owner-tag'));tasks.append(item);
-    });n.append(tasks);
-   }else n.append(E('p',c.body||'尚未填寫內容'));
+   const lines=workLines(c.body);
+   if(lines.some(line=>line.trim())){
+    const tasks=E('ul',null,'cv-card-tasks');
+    lines.forEach((line,i)=>{
+     if(!line.trim())return;
+     const item=E('li'),owner=c.assignees?.[i],kinds=c.kinds?.[i]??[];
+     item.append(E('span',line,'cv-task-name'));
+     if(owner)item.append(E('small','行政：'+owner,'cv-owner-tag'));
+     if(kinds.length){
+      const labels=E('div',null,'cv-card-kinds');labels.setAttribute('aria-label','對應大類');
+      for(const kind of kinds)labels.append(E('span',kind,'cv-card-kind'));
+      item.append(labels);
+     }
+     tasks.append(item);
+    });
+    n.append(tasks);
+   }else n.append(E('p','尚未填寫內容'));
    grip.addEventListener('pointerdown',e=>startDrag(e,c,n));grip.addEventListener('pointermove',e=>drag(e,c));grip.addEventListener('pointerup',e=>endDrag(e,c,false));grip.addEventListener('pointercancel',e=>endDrag(e,c,true));
    grip.addEventListener('keydown',e=>{const shifts={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(!shifts[e.key])return;e.preventDefault();const [dx,dy]=shifts[e.key],v=copy(model),t=v.cards.find(t=>t.id===c.id);const step=e.shiftKey?60:16;t.x=cap(t.x+dx*step,0,12000);t.y=cap(t.y+dy*step,0,12000);save(v).then(()=>nodes.get(c.id)?.querySelector('.cv-grip')?.focus({preventScroll:true}));});
    for(const [k,label] of Object.entries(ports)){const b=act('',()=>linkFrom(c,k),'cv-port cv-port-'+k);b.setAttribute('aria-label',c.title+'：'+label+'方接點');b.setAttribute('aria-pressed',String(port?.id===c.id&&port.p===k));n.append(b);}
@@ -294,8 +314,8 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   if(!model.cards.length)cards.append(E('p','點「新增圖卡」開始。','cv-empty'));
   const selector=$('canvasEdgeList');selector.replaceChildren(new Option('選擇要移除的箭頭',''));
   model.links.forEach((e,i)=>selector.append(new Option((model.cards.find(c=>c.id===e.from)?.title||'')+' → '+(model.cards.find(c=>c.id===e.to)?.title||''),String(i))));
-  $('canvasRemoveEdge').disabled=true;edges();
-  if(typeof ResizeObserver!=='undefined'){observer=new ResizeObserver(edges);for(const n of nodes.values())observer.observe(n);}
+  $('canvasRemoveEdge').disabled=true;fitSurface();edges();
+  if(typeof ResizeObserver!=='undefined'){observer=new ResizeObserver(()=>{fitSurface();edges();});for(const n of nodes.values())observer.observe(n);}
  }
  $('canvasEdgeList').onchange=()=>{$('canvasRemoveEdge').disabled=$('canvasEdgeList').value==='';};
  $('canvasRemoveEdge').onclick=()=>{const ix=$('canvasEdgeList').value;if(ix==='')return;const v=copy(model);v.links.splice(Number(ix),1);save(v);};
@@ -304,7 +324,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   try{const next=rev===0?seedCanvas(latestSeed):checkedCanvas(JSON.parse(payload));if(gesture&&rev===revision)return;if(gesture)gesture=null;model=next;revision=rev;if(port&&!model.cards.some(c=>c.id===port.id))port=null;draw();onChange(model);if(first){first=false;if(scroll.clientWidth<620&&model.cards.some(c=>c.x===300))scroll.scrollLeft=260;}setStatus(rev===0?'已帶入原流程。移動、編輯或連線後會儲存畫布。':'已同步');}
   catch(e){setStatus(e.message);}
  }},{derive:canvasDocId});
- return {show(){edges();},seed(v){latestSeed=v;},edit(id){const card=model.cards.find(c=>c.id===id);if(card)open(card);},
+ return {show(){fitSurface();edges();},seed(v){latestSeed=v;},edit(id){const card=model.cards.find(c=>c.id===id);if(card)open(card);},
   reference(){return {value:model.caseReference??null,rev:revision};},
   saveReference(value,rev){return save({...copy(model),caseReference:value},rev);}
  };

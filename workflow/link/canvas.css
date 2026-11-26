@@ -24,3 +24,7 @@
 @media(max-width:880px){.wl-case-counts{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:520px){.wl-case-counts{grid-template-columns:repeat(4,minmax(0,1fr))}.cv-work-head,.cv-work-row{grid-template-columns:minmax(0,1fr) minmax(68px,23%) minmax(77px,26%) 28px;gap:4px}.cv-work-row .cv-work-remove{min-width:28px}#canvasDialog{padding:12px 9px}.wl-list table{font-size:.81rem}}
 .cv-work .cv-kind-picker{margin:0;padding:0;background:#fff}
+.cv-card h3{min-width:0}.cv-card-head button{flex:none}
+.cv-card-tasks{gap:9px}.cv-card-tasks li{display:grid;min-width:0;justify-content:stretch;gap:4px;line-height:1.45}.cv-card-tasks li+li{border-top:1px solid #d9e8f3;padding-top:7px}
+.cv-task-name{display:block;overflow-wrap:anywhere}.cv-card-tasks .cv-owner-tag{justify-self:start;max-width:100%;font-size:.76rem}.cv-card-kinds{display:flex;flex-wrap:wrap;gap:3px;color:#295578;min-width:0}.cv-card-tasks .cv-card-kind{max-width:100%;border:1px solid #c7dcea;border-radius:5px;padding:0 4px;background:#edf6fc;font-size:.72rem;line-height:1.35}
+.cv-card:is(:hover,:focus-within){z-index:2}.cv-card.cv-moving{z-index:3}
