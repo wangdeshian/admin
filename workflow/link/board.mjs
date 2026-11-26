@@ -1,5 +1,5 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { mountCanvas } from './canvas.mjs?v=workload4';
+import { mountCanvas } from './canvas.mjs?v=measure5';
 import { mountWorkload } from './workload.mjs?v=workload4';
 const $=id=>document.getElementById(id);
 const statuses=['待分工','待開始','進行中','待交接','已完成'];

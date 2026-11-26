@@ -40,6 +40,9 @@ export function arrowPath([x,y,dx,dy],[X,Y,dX,dY]){
  const bend=cap(Math.hypot(X-x,Y-y)*.37,34,145);
  return `M ${x} ${y} C ${x+dx*bend} ${y+dy*bend}, ${X+dX*bend} ${Y+dY*bend}, ${X} ${Y}`;
 }
+export function arrowDistance([x,y],[X,Y]){
+ return Math.round(Math.hypot(X-x,Y-y));
+}
 export function canvasDocId(key){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('admin-workflow-canvas-v1:'+key)).then(b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));}
 export function checkedCanvas(x){
  if(!x||![1,2].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
@@ -183,7 +186,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
  function position(c,x,y){
   const n=nodes.get(c.id);if(!n)return;n.style.left=x+'px';n.style.top=y+'px';edges();
  }
- const guideX=$('canvasGuideX'),guideY=$('canvasGuideY');
+ const guideX=$('canvasGuideX'),guideY=$('canvasGuideY'),measures=$('canvasMeasures');
  function showGuides(next,w=0,h=0){
   for(const [guide,match,cross,size,offset,from,len] of [[guideX,next?.gx,'y','h',next?.y,'top','height'],[guideY,next?.gy,'x','w',next?.x,'left','width']]){
    guide.hidden=!match;if(!match)continue;
@@ -220,7 +223,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
  function endDrag(ev,c,cancel){
   if(gesture?.id!==c.id||gesture.p!==ev.pointerId)return;
   if(!cancel)drag(ev,c);
-  const g=gesture;gesture=null;showGuides();nodes.get(c.id)?.classList.remove('cv-moving');
+  const g=gesture;gesture=null;showGuides();measures.replaceChildren();nodes.get(c.id)?.classList.remove('cv-moving');
   if(cancel||g.nx==null||g.nx===c.x&&g.ny===c.y){draw();return;}
   const v=copy(model),t=v.cards.find(t=>t.id===c.id);if(!t)return draw();t.x=g.nx;t.y=g.ny;
   save(v,g.rev).then(ok=>{if(!ok)draw();});
@@ -229,9 +232,29 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   const root=surface.getBoundingClientRect();const scene=node=>{const r=node.getBoundingClientRect();return {x:(r.left-root.left)/zoom,y:(r.top-root.top)/zoom,w:r.width/zoom,h:r.height/zoom};};
   const xy=(n,p)=>{const r=scene(n);return p==='l'?[r.x,r.y+r.h/2,-1,0]:p==='r'?[r.x+r.w,r.y+r.h/2,1,0]:p==='t'?[r.x+r.w/2,r.y,0,-1]:[r.x+r.w/2,r.y+r.h,0,1];};
   $('canvasPaths').replaceChildren();
+  const labels=[],measuring=gesture?.moved?gesture.id:null;
   model.links.forEach(e=>{const a=nodes.get(e.from),b=nodes.get(e.to);if(!a||!b)return;
-   const p=document.createElementNS(NS,'path');p.setAttribute('d',arrowPath(xy(a,e.a),xy(b,e.b)));p.setAttribute('marker-end','url(#cvArrow)');$('canvasPaths').append(p);
+   const A=xy(a,e.a),B=xy(b,e.b);
+   const p=document.createElementNS(NS,'path');p.setAttribute('d',arrowPath(A,B));p.setAttribute('marker-end','url(#cvArrow)');$('canvasPaths').append(p);
+   if(measuring!==e.from&&measuring!==e.to)return;
+   const [x,y]=A,[X,Y]=B,vertical=Math.abs(Y-y)>=Math.abs(X-x);
+   const half=32/zoom,space=19/zoom;
+   const left=cap((x+X)/2+(vertical?36/zoom:0),half,Math.max(half,root.width/zoom-half));
+   let top=cap((y+Y)/2+(vertical?0:-space),space,Math.max(space,root.height/zoom-space));
+   const occupied=(t)=>labels.some(q=>Math.abs(q.left-left)<63/zoom&&Math.abs(q.top-t)<22/zoom);
+   if(occupied(top)){
+    const base=top;
+    for(let i=1;i<=4;i++){
+     const candidates=[base-i*25/zoom,base+i*25/zoom].filter(t=>t>=space&&t<=root.height/zoom-space);
+     const next=candidates.find(t=>!occupied(t));if(next!==undefined){top=next;break;}
+    }
+   }
+   labels.push({left,top,length:arrowDistance(A,B)});
   });
+  measures.style.setProperty('--cv-measure-scale',1/zoom);
+  measures.replaceChildren(...labels.map(({left,top,length})=>{
+   const tag=E('span',length+' px','cv-measure-tag');tag.style.left=left+'px';tag.style.top=top+'px';return tag;
+  }));
  }
  function draw(){
   showGuides();observer?.disconnect();cards.replaceChildren();nodes.clear();
