@@ -1,5 +1,5 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { mountCanvas } from './canvas.mjs?v=wide2';
+import { mountCanvas } from './canvas.mjs?v=align3';
 const $=id=>document.getElementById(id);
 const el=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 

@@ -8,6 +8,38 @@ const id=()=>crypto.randomUUID();
 const copy=o=>JSON.parse(JSON.stringify(o));
 const workLines=body=>body.replace(/\r\n?/g,'\n').split('\n');
 const validName=n=>typeof n==='string'&&n.trim()===n&&n.length>0&&n.length<=40&&!/[\r\n]/.test(n);
+const facing=(a,b)=>(a==='l'&&b==='r')||(a==='r'&&b==='l')||(a==='t'&&b==='b')||(a==='b'&&b==='t');
+export function snapPosition(rect,others,zoom=1){
+ const {x,y,w,h}=rect,result={x,y,gx:null,gy:null};
+ let bestX,bestY;
+ for(const o of others){
+  // Only snap to neighboring cards. Match centers rather than edges so ports line up on different-height cards.
+  for(const axis of ['x','y']){
+   const horizontal=axis==='x',limit=horizontal?'w':'h',parallel=horizontal?'y':'x',extent=horizontal?'h':'w';
+   const separated=rect[parallel]+rect[extent]+8<=o[parallel]||o[parallel]+o[extent]+8<=rect[parallel];
+   if(!separated)continue;
+   const linked=horizontal?o.vertical:o.horizontal;
+   const center=o[axis]+o[limit]/2,at=Math.round(center-rect[limit]/2);
+   const distance=Math.abs(at-rect[axis])*zoom;
+   if(at<0||at>12000||distance>(linked?22:13))continue;
+   const gap=Math.max(o[parallel]-rect[parallel]-rect[extent],rect[parallel]-o[parallel]-o[extent],0);
+   const score=distance-(linked?9:0)+Math.min(gap,1200)/1200;
+   const best=horizontal?bestX:bestY;if(best&&best.score<=score)continue;
+   const winner={score,at,center,other:o};
+   if(horizontal)bestX=winner;else bestY=winner;
+  }
+ }
+ if(bestX){result.x=bestX.at;result.gx=bestX;}
+ if(bestY){result.y=bestY.at;result.gy=bestY;}
+ return result;
+}
+export function arrowPath([x,y,dx,dy],[X,Y,dX,dY]){
+ const aligned=dx&&dx===-dX&&Math.abs(Y-y)<.75&&(X-x)*dx>0
+  ||dy&&dy===-dY&&Math.abs(X-x)<.75&&(Y-y)*dy>0;
+ if(aligned)return `M ${x} ${y} L ${X} ${Y}`;
+ const bend=cap(Math.hypot(X-x,Y-y)*.37,34,145);
+ return `M ${x} ${y} C ${x+dx*bend} ${y+dy*bend}, ${X+dX*bend} ${Y+dY*bend}, ${X} ${Y}`;
+}
 export function canvasDocId(key){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('admin-workflow-canvas-v1:'+key)).then(b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));}
 export function checkedCanvas(x){
  if(!x||![1,2].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
@@ -60,7 +92,7 @@ export function mountCanvas(seed){
   expand.textContent=value?'離開全畫面':'全畫面';expand.setAttribute('aria-pressed',String(value));edges();
  }
  expand.onclick=()=>setExpanded(!expanded);
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&expanded&&!dialog.open){setExpanded(false);expand.focus();}});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&gesture){e.preventDefault();gesture=null;draw();}else if(e.key==='Escape'&&expanded&&!dialog.open){setExpanded(false);expand.focus();}});
  function labelRows(){Array.from(rowBox.children).forEach((r,i)=>{
   r.querySelector('input').setAttribute('aria-label','工作項目 '+(i+1));
   r.querySelector('select').setAttribute('aria-label','工作項目 '+(i+1)+' 的負責行政');
@@ -151,19 +183,44 @@ export function mountCanvas(seed){
  function position(c,x,y){
   const n=nodes.get(c.id);if(!n)return;n.style.left=x+'px';n.style.top=y+'px';edges();
  }
+ const guideX=$('canvasGuideX'),guideY=$('canvasGuideY');
+ function showGuides(next,w=0,h=0){
+  for(const [guide,match,cross,size,offset,from,len] of [[guideX,next?.gx,'y','h',next?.y,'top','height'],[guideY,next?.gy,'x','w',next?.x,'left','width']]){
+   guide.hidden=!match;if(!match)continue;
+   const other=match.other,span=size==='w'?w:h,lo=Math.min(offset,other[cross]),hi=Math.max(offset+span,other[cross]+other[size]);
+   guide.style[guide===guideX?'left':'top']=match.center+'px';guide.style[from]=lo+'px';guide.style[len]=(hi-lo)+'px';
+  }
+ }
  function startDrag(ev,c,node){
-  if(ev.button!==0||!can())return;
+  if(ev.button!==0||gesture||!can())return;
   ev.preventDefault();const grip=ev.currentTarget;grip.setPointerCapture(ev.pointerId);
-  gesture={id:c.id,p:ev.pointerId,x:ev.clientX,y:ev.clientY,bx:c.x,by:c.y,rev:revision};
+  const size=node.getBoundingClientRect(),connected=new Map();
+  for(const e of model.links){
+   const other=e.from===c.id?e.to:e.to===c.id?e.from:null;
+   if(other&&facing(e.a,e.b)){
+    const flag=connected.get(other)??{};flag[e.a==='t'||e.a==='b'?'vertical':'horizontal']=true;connected.set(other,flag);
+   }
+  }
+  const others=model.cards.filter(other=>other.id!==c.id).flatMap(other=>{
+   const n=nodes.get(other.id);if(!n)return[];
+   const r=n.getBoundingClientRect();return [{x:other.x,y:other.y,w:r.width/zoom,h:r.height/zoom,...connected.get(other.id)}];
+  });
+  gesture={id:c.id,p:ev.pointerId,x:ev.clientX,y:ev.clientY,bx:c.x,by:c.y,rev:revision,sx:scroll.scrollLeft,sy:scroll.scrollTop,w:size.width/zoom,h:size.height/zoom,others};
   node.classList.add('cv-moving');
  }
  function drag(ev,c){
   if(gesture?.id!==c.id||gesture.p!==ev.pointerId)return;
-  const g=gesture;g.nx=cap(Math.round(g.bx+(ev.clientX-g.x)/zoom),0,12000);g.ny=cap(Math.round(g.by+(ev.clientY-g.y)/zoom),0,12000);position(c,g.nx,g.ny);
+  const g=gesture,dx=ev.clientX-g.x+scroll.scrollLeft-g.sx,dy=ev.clientY-g.y+scroll.scrollTop-g.sy;
+  if(!g.moved&&Math.hypot(dx,dy)<4)return;
+  g.moved=true;
+  const x=cap(Math.round(g.bx+dx/zoom),0,12000),y=cap(Math.round(g.by+dy/zoom),0,12000);
+  const next=ev.shiftKey?{x,y}:snapPosition({x,y,w:g.w,h:g.h},g.others,zoom);
+  g.nx=next.x;g.ny=next.y;showGuides(next,g.w,g.h);position(c,g.nx,g.ny);
  }
  function endDrag(ev,c,cancel){
   if(gesture?.id!==c.id||gesture.p!==ev.pointerId)return;
-  const g=gesture;gesture=null;
+  if(!cancel)drag(ev,c);
+  const g=gesture;gesture=null;showGuides();nodes.get(c.id)?.classList.remove('cv-moving');
   if(cancel||g.nx==null||g.nx===c.x&&g.ny===c.y){draw();return;}
   const v=copy(model),t=v.cards.find(t=>t.id===c.id);if(!t)return draw();t.x=g.nx;t.y=g.ny;
   save(v,g.rev).then(ok=>{if(!ok)draw();});
@@ -173,17 +230,16 @@ export function mountCanvas(seed){
   const xy=(n,p)=>{const r=scene(n);return p==='l'?[r.x,r.y+r.h/2,-1,0]:p==='r'?[r.x+r.w,r.y+r.h/2,1,0]:p==='t'?[r.x+r.w/2,r.y,0,-1]:[r.x+r.w/2,r.y+r.h,0,1];};
   $('canvasPaths').replaceChildren();
   model.links.forEach(e=>{const a=nodes.get(e.from),b=nodes.get(e.to);if(!a||!b)return;
-   const [x,y,dx,dy]=xy(a,e.a),[X,Y,dX,dY]=xy(b,e.b),bend=cap(Math.hypot(X-x,Y-y)*.37,34,145);
-   const p=document.createElementNS(NS,'path');p.setAttribute('d',`M ${x} ${y} C ${x+dx*bend} ${y+dy*bend}, ${X+dX*bend} ${Y+dY*bend}, ${X} ${Y}`);p.setAttribute('marker-end','url(#cvArrow)');$('canvasPaths').append(p);
+   const p=document.createElementNS(NS,'path');p.setAttribute('d',arrowPath(xy(a,e.a),xy(b,e.b)));p.setAttribute('marker-end','url(#cvArrow)');$('canvasPaths').append(p);
   });
  }
  function draw(){
-  observer?.disconnect();cards.replaceChildren();nodes.clear();
+  showGuides();observer?.disconnect();cards.replaceChildren();nodes.clear();
   surface.style.width=Math.max(845,...model.cards.map(c=>c.x+305))+'px';surface.style.height=Math.max(540,...model.cards.map(c=>c.y+260))+'px';
   $('canvasCancelLink').hidden=!port;$('canvasAdd').disabled=revision===null;
   for(const c of model.cards){
    const n=E('article',null,'cv-card');n.style.left=c.x+'px';n.style.top=c.y+'px';
-   const header=E('div',null,'cv-card-head'),grip=act('⠿',()=>{},'cv-grip');grip.setAttribute('aria-label','移動圖卡：'+c.title);grip.title='拖曳移動，也可用方向鍵';
+   const header=E('div',null,'cv-card-head'),grip=act('⠿',()=>{},'cv-grip');grip.setAttribute('aria-label','移動圖卡：'+c.title);grip.title='拖曳自動對齊。按住 Shift 可自由移動，也可用方向鍵微調';
    const edit=act('編輯',()=>open(c));edit.setAttribute('aria-label','編輯圖卡：'+c.title);
    header.append(grip,E('h3',c.title),edit);n.append(header);
    if(c.assignees?.some(Boolean)){
@@ -207,7 +263,7 @@ export function mountCanvas(seed){
  $('canvasRemoveEdge').onclick=()=>{const ix=$('canvasEdgeList').value;if(ix==='')return;const v=copy(model);v.links.splice(Number(ix),1);save(v);};
  cloud=connect({status(_mode,message){setStatus(message);},snapshot({rev,payload}){
   if(revision!==null&&rev<revision)return;
-  try{const next=rev===0?seedCanvas(latestSeed):checkedCanvas(JSON.parse(payload));if(gesture&&rev===revision)return;model=next;revision=rev;if(port&&!model.cards.some(c=>c.id===port.id))port=null;draw();if(first){first=false;if(scroll.clientWidth<620&&model.cards.some(c=>c.x===300))scroll.scrollLeft=260;}setStatus(rev===0?'已帶入原流程。移動、編輯或連線後會儲存畫布。':'已同步');}
+  try{const next=rev===0?seedCanvas(latestSeed):checkedCanvas(JSON.parse(payload));if(gesture&&rev===revision)return;if(gesture)gesture=null;model=next;revision=rev;if(port&&!model.cards.some(c=>c.id===port.id))port=null;draw();if(first){first=false;if(scroll.clientWidth<620&&model.cards.some(c=>c.x===300))scroll.scrollLeft=260;}setStatus(rev===0?'已帶入原流程。移動、編輯或連線後會儲存畫布。':'已同步');}
   catch(e){setStatus(e.message);}
  }},{derive:canvasDocId});
  return {show(){edges();},seed(v){latestSeed=v;}};
