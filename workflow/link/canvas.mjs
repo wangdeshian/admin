@@ -1,4 +1,4 @@
-import { connect } from './sync.mjs';
+import { connect } from './sync.mjs?v=canvas1';
 const $=id=>document.getElementById(id);
 const E=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const NS='http://www.w3.org/2000/svg';

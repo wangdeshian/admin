@@ -1,5 +1,5 @@
-import { connect } from './sync.mjs';
-import { mountCanvas } from './canvas.mjs';
+import { connect } from './sync.mjs?v=canvas1';
+import { mountCanvas } from './canvas.mjs?v=canvas1';
 const $=id=>document.getElementById(id);
 const el=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 
@@ -116,6 +116,7 @@ function render(){
  $('canvasPanel').hidden=view!=='canvas';
  $('legacyPanel').hidden=view==='canvas';
  $('oldActions').hidden=view==='canvas';
+ $('stats').hidden=view==='canvas';
  if(view==='canvas'){if(!canvas&&syncStatus==='ready')canvas=mountCanvas(state);else canvas?.seed(state);canvas?.show();}
  drawFlow();
  const filter=$('filter').value;
