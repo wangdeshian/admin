@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
 <title>行政流程與交接｜連結共用版</title>
-<link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="canvas.css?v=kindTabs9"><script type="module" src="board.mjs?v=kindTabs9"></script>
+<link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="canvas.css?v=kindTabs9"><script type="module" src="board.mjs?v=dragScroll10"></script>
 <style>
 [hidden]{display:none!important}
 .workhead h2{font-size:1.75rem}
@@ -22,7 +22,7 @@
 <div class="workhead cv-workhead"><h1>行政流程看板</h1><div class="view-switch" role="group" aria-label="顯示方式"><button type="button" id="canvasMode" aria-pressed="true">自由編排</button><button type="button" id="listMode" aria-pressed="false">全部清單</button></div></div>
 <section id="canvasPanel" aria-label="自由編排流程畫布">
 <div class="cv-toolbar"><div class="cv-edge-tools"><button type="button" class="primary" id="canvasAdd" disabled>＋ 新增圖卡</button><button type="button" id="canvasCancelLink" hidden>取消連線</button><label for="canvasEdgeList" class="sr">選擇箭頭</label><select id="canvasEdgeList"><option value="">選擇要移除的箭頭</option></select><button type="button" id="canvasRemoveEdge" disabled>移除箭頭</button></div><div class="cv-zoom" role="group" aria-label="畫布檢視"><button type="button" id="canvasZoomOut" aria-label="縮小畫布">−</button><button type="button" id="canvasZoomReset" title="回到原始大小" aria-label="回到原始大小，100%">100%</button><button type="button" id="canvasZoomIn" aria-label="放大畫布">＋</button><button type="button" id="canvasExpand" aria-pressed="false">全畫面</button></div></div>
-<div class="cv-meta"><p class="cv-hint">拖動「⠿」靠近同一排或同一列會自動對齊；按住 Shift 可暫停對齊。<span id="canvasHint">點兩張圖卡的圓點即可連線。</span></p><div id="canvasStatus" class="cv-status" role="status">正在載入畫布…</div></div>
+<div class="cv-meta"><p class="cv-hint">拖動「⠿」靠近同一排或同一列會自動對齊；按住 Shift 可暫停對齊。拖到畫布上下緣會自動捲動。<span id="canvasHint">點兩張圖卡的圓點即可連線。</span></p><div id="canvasStatus" class="cv-status" role="status">正在載入畫布…</div></div>
 <div class="cv-scroll" id="canvasScroll" tabindex="0" aria-label="圖卡畫布，可上下左右捲動"><div class="cv-surface" id="canvasSurface"><svg id="canvasLinks" class="cv-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><marker id="cvArrow" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#2c6daf"/></marker></defs><g id="canvasPaths"></g></svg><div id="canvasGuideX" class="cv-guide cv-guide-x" aria-hidden="true" hidden></div><div id="canvasGuideY" class="cv-guide cv-guide-y" aria-hidden="true" hidden></div><div id="canvasCards"></div><div id="canvasMeasures" aria-hidden="true"></div></div></div>
 </section>
 <section id="workloadPanel" aria-labelledby="workloadTitle" hidden>

@@ -44,6 +44,13 @@ export function arrowPath([x,y,dx,dy],[X,Y,dX,dY]){
 export function arrowDistance([x,y],[X,Y]){
  return Math.round(Math.hypot(X-x,Y-y));
 }
+export function edgeScrollVelocity(x,y,bounds){
+ const {left,right,top,bottom}=bounds;
+ if(x<left-24||x>right+24||bottom-top<80||y<top-50||y>bottom+65)return 0;
+ const edge=Math.min(60,(bottom-top)/4);
+ const amount=cap((y-(bottom-edge))/edge,0,1)-cap(((top+edge)-y)/edge,0,1);
+ return Math.sign(amount)*850*amount*amount;
+}
 export function canvasDocId(key){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('admin-workflow-canvas-v1:'+key)).then(b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));}
 export function checkedCanvas(x){
  if(!x||![1,2,3,4,5].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
@@ -82,7 +89,7 @@ export function seedCanvas(board){
 export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
  const scroll=$('canvasScroll'),surface=$('canvasSurface'),cards=$('canvasCards'),svg=$('canvasLinks'),status=$('canvasStatus'),hint=$('canvasHint'),dialog=$('canvasDialog'),form=$('canvasForm'),err=$('canvasError');
  let model={version:1,cards:[],links:[]},revision=null,busy=false,port=null,openingRev=null,editing=null,latestSeed=seed,first=true,gesture=null;
- const nodes=new Map();let observer,cloud;
+ const nodes=new Map();let observer,cloud,scrollFrame=0;
  const rowBox=$('canvasWorkRows'),nameInput=$('canvasRosterName'),rosterStatus=$('canvasRosterStatus');
  let draftRoster=[],zoom=1,expanded=false;
  const panel=$('canvasPanel'),zOut=$('canvasZoomOut'),zIn=$('canvasZoomIn'),zReset=$('canvasZoomReset'),expand=$('canvasExpand');
@@ -101,7 +108,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   expand.textContent=value?'離開全畫面':'全畫面';expand.setAttribute('aria-pressed',String(value));edges();
  }
  expand.onclick=()=>setExpanded(!expanded);
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&gesture){e.preventDefault();gesture=null;draw();}else if(e.key==='Escape'&&expanded&&!dialog.open){setExpanded(false);expand.focus();}});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&gesture){e.preventDefault();clearGesture();draw();}else if(e.key==='Escape'&&expanded&&!dialog.open){setExpanded(false);expand.focus();}});
  function labelRows(){Array.from(rowBox.children).forEach((r,i)=>{
   r.querySelector('input').setAttribute('aria-label','工作項目 '+(i+1));
   r.querySelector('select').setAttribute('aria-label','工作項目 '+(i+1)+' 的負責行政');
@@ -226,19 +233,52 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   gesture={id:c.id,p:ev.pointerId,x:ev.clientX,y:ev.clientY,bx:c.x,by:c.y,rev:revision,sx:scroll.scrollLeft,sy:scroll.scrollTop,w:size.width/zoom,h:size.height/zoom,others};
   node.classList.add('cv-moving');
  }
- function drag(ev,c){
-  if(gesture?.id!==c.id||gesture.p!==ev.pointerId)return;
-  const g=gesture,dx=ev.clientX-g.x+scroll.scrollLeft-g.sx,dy=ev.clientY-g.y+scroll.scrollTop-g.sy;
+ function clearGesture(){
+  if(scrollFrame)cancelAnimationFrame(scrollFrame);
+  scrollFrame=0;gesture=null;
+ }
+ function renderDrag(g){
+  const dx=g.lastX-g.x+scroll.scrollLeft-g.sx,dy=g.lastY-g.y+scroll.scrollTop-g.sy;
   if(!g.moved&&Math.hypot(dx,dy)<4)return;
   g.moved=true;
   const x=cap(Math.round(g.bx+dx/zoom),0,12000),y=cap(Math.round(g.by+dy/zoom),0,12000);
-  const next=ev.shiftKey?{x,y}:snapPosition({x,y,w:g.w,h:g.h},g.others,zoom);
-  g.nx=next.x;g.ny=next.y;showGuides(next,g.w,g.h);position(c,g.nx,g.ny);
+  const next=g.shift?{x,y}:snapPosition({x,y,w:g.w,h:g.h},g.others,zoom);
+  g.nx=next.x;g.ny=next.y;showGuides(next,g.w,g.h);position(g.card,g.nx,g.ny);
+ }
+ function velocity(g){
+  const r=scroll.getBoundingClientRect(),top=r.top+scroll.clientTop;
+  return edgeScrollVelocity(g.lastX,g.lastY,{left:r.left,right:r.right,top:Math.max(0,top),bottom:Math.min(top+scroll.clientHeight,document.documentElement.clientHeight)});
+ }
+ function autoScroll(now){
+  scrollFrame=0;const g=gesture;if(!g?.moved)return;
+  const speed=velocity(g);if(!speed){g.lastFrame=0;return;}
+  if(speed>0&&g.ny>=12000||speed<0&&scroll.scrollTop<=0){g.lastFrame=0;return;}
+  const dt=g.lastFrame?cap(now-g.lastFrame,1,32):16;g.lastFrame=now;
+  g.scrollRemainder=(g.scrollRemainder??0)+speed*dt/1000;
+  const step=Math.trunc(g.scrollRemainder);g.scrollRemainder-=step;
+  if(step){
+   if(step>0){
+    const needed=Math.ceil((scroll.scrollTop+scroll.clientHeight+step+24)/zoom);
+    if(needed>(parseFloat(surface.style.height)||0)){
+     g.extraHeight=Math.max(needed,(g.ny??g.by)+g.h+60);
+     surface.style.height=g.extraHeight+'px';
+    }
+   }
+   const before=scroll.scrollTop;scroll.scrollTop=before+step;
+   if(scroll.scrollTop!==before)renderDrag(g);
+  }
+  if(gesture===g)scrollFrame=requestAnimationFrame(autoScroll);
+ }
+ function drag(ev,c,final=false){
+  if(gesture?.id!==c.id||gesture.p!==ev.pointerId)return;
+  const g=gesture;g.card=c;g.lastX=ev.clientX;g.lastY=ev.clientY;g.shift=ev.shiftKey;
+  renderDrag(g);
+  if(!final&&g.moved&&!scrollFrame&&velocity(g))scrollFrame=requestAnimationFrame(autoScroll);
  }
  function endDrag(ev,c,cancel){
   if(gesture?.id!==c.id||gesture.p!==ev.pointerId)return;
-  if(!cancel)drag(ev,c);
-  const g=gesture;gesture=null;showGuides();measures.replaceChildren();nodes.get(c.id)?.classList.remove('cv-moving');
+  if(!cancel)drag(ev,c,true);
+  const g=gesture;clearGesture();showGuides();measures.replaceChildren();nodes.get(c.id)?.classList.remove('cv-moving');
   if(cancel||g.nx==null||g.nx===c.x&&g.ny===c.y){draw();return;}
   const v=copy(model),t=v.cards.find(t=>t.id===c.id);if(!t)return draw();t.x=g.nx;t.y=g.ny;
   save(v,g.rev).then(ok=>{if(!ok)draw();});
@@ -278,7 +318,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
    width=Math.max(width,node.offsetLeft+node.offsetWidth+40);
    height=Math.max(height,node.offsetTop+node.offsetHeight+40);
   }
-  surface.style.width=width+'px';surface.style.height=height+'px';
+  surface.style.width=width+'px';surface.style.height=Math.max(height,gesture?.extraHeight??0)+'px';
  }
  function draw(){
   showGuides();observer?.disconnect();cards.replaceChildren();nodes.clear();
@@ -306,7 +346,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
     });
     n.append(tasks);
    }else n.append(E('p','尚未填寫內容'));
-   grip.addEventListener('pointerdown',e=>startDrag(e,c,n));grip.addEventListener('pointermove',e=>drag(e,c));grip.addEventListener('pointerup',e=>endDrag(e,c,false));grip.addEventListener('pointercancel',e=>endDrag(e,c,true));
+   grip.addEventListener('pointerdown',e=>startDrag(e,c,n));grip.addEventListener('pointermove',e=>drag(e,c));grip.addEventListener('pointerup',e=>endDrag(e,c,false));grip.addEventListener('pointercancel',e=>endDrag(e,c,true));grip.addEventListener('lostpointercapture',e=>endDrag(e,c,true));
    grip.addEventListener('keydown',e=>{const shifts={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(!shifts[e.key])return;e.preventDefault();const [dx,dy]=shifts[e.key],v=copy(model),t=v.cards.find(t=>t.id===c.id);const step=e.shiftKey?60:16;t.x=cap(t.x+dx*step,0,12000);t.y=cap(t.y+dy*step,0,12000);save(v).then(()=>nodes.get(c.id)?.querySelector('.cv-grip')?.focus({preventScroll:true}));});
    for(const [k,label] of Object.entries(ports)){const b=act('',()=>linkFrom(c,k),'cv-port cv-port-'+k);b.setAttribute('aria-label',c.title+'：'+label+'方接點');b.setAttribute('aria-pressed',String(port?.id===c.id&&port.p===k));n.append(b);}
    cards.append(n);nodes.set(c.id,n);
@@ -321,7 +361,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
  $('canvasRemoveEdge').onclick=()=>{const ix=$('canvasEdgeList').value;if(ix==='')return;const v=copy(model);v.links.splice(Number(ix),1);save(v);};
  cloud=connect({status(_mode,message){setStatus(message);},snapshot({rev,payload}){
   if(revision!==null&&rev<revision)return;
-  try{const next=rev===0?seedCanvas(latestSeed):checkedCanvas(JSON.parse(payload));if(gesture&&rev===revision)return;if(gesture)gesture=null;model=next;revision=rev;if(port&&!model.cards.some(c=>c.id===port.id))port=null;draw();onChange(model);if(first){first=false;if(scroll.clientWidth<620&&model.cards.some(c=>c.x===300))scroll.scrollLeft=260;}setStatus(rev===0?'已帶入原流程。移動、編輯或連線後會儲存畫布。':'已同步');}
+  try{const next=rev===0?seedCanvas(latestSeed):checkedCanvas(JSON.parse(payload));if(gesture&&rev===revision)return;if(gesture)clearGesture();model=next;revision=rev;if(port&&!model.cards.some(c=>c.id===port.id))port=null;draw();onChange(model);if(first){first=false;if(scroll.clientWidth<620&&model.cards.some(c=>c.x===300))scroll.scrollLeft=260;}setStatus(rev===0?'已帶入原流程。移動、編輯或連線後會儲存畫布。':'已同步');}
   catch(e){setStatus(e.message);}
  }},{derive:canvasDocId});
  return {show(){fitSurface();edges();},seed(v){latestSeed=v;},edit(id){const card=model.cards.find(c=>c.id===id);if(card)open(card);},
