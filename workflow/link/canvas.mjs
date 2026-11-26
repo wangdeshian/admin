@@ -1,5 +1,5 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { checkedReference, workKinds } from './case-reference.mjs?v=kindTabs9';
+import { checkedReference, workKinds, assignmentsFor } from './case-reference.mjs?v=multiOwner11';
 const $=id=>document.getElementById(id);
 const E=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const NS='http://www.w3.org/2000/svg';
@@ -53,11 +53,11 @@ export function edgeScrollVelocity(x,y,bounds){
 }
 export function canvasDocId(key){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('admin-workflow-canvas-v1:'+key)).then(b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));}
 export function checkedCanvas(x){
- if(!x||![1,2,3,4,5].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
+ if(!x||![1,2,3,4,5,6].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
  const ids=new Set(),seen=new Set();
  const roster=x.roster??[];
  if(!Array.isArray(roster)||roster.length>80||!roster.every(validName)||new Set(roster).size!==roster.length)throw Error('行政名單格式不正確。');
- const people=new Set(roster);let hasWorkKinds=false,hasNewKinds=false;
+ const people=new Set(roster);let hasWorkKinds=false,hasNewKinds=false,hasResponsibilities=false;
  const cards=x.cards.map(c=>{if(!c||typeof c.id!=='string'||!/^[-a-zA-Z0-9_]{1,90}$/.test(c.id)||ids.has(c.id)||typeof c.title!=='string'||!c.title.trim()||c.title.length>120||typeof c.body!=='string'||c.body.length>1600||!['x','y'].every(k=>Number.isInteger(c[k])&&c[k]>=0&&c[k]<=12000))throw Error('圖卡資料格式不正確。');ids.add(c.id);
   const card={id:c.id,title:c.title,body:c.body,x:c.x,y:c.y};
   if(c.assignees!==undefined){
@@ -68,10 +68,22 @@ export function checkedCanvas(x){
    if(!Array.isArray(c.kinds)||c.kinds.length!==workLines(c.body).length||!c.kinds.every(ks=>Array.isArray(ks)&&ks.length<=workKinds.length&&ks.every(k=>workKinds.includes(k))&&ks.length===new Set(ks).size))throw Error('工作項目的大類格式不正確。');
    if(c.kinds.some(ks=>ks.length)){hasWorkKinds=true;hasNewKinds ||= c.kinds.some(ks=>ks.includes('招募函')||ks.includes('國外引進'));card.kinds=c.kinds.map(ks=>workKinds.filter(k=>ks.includes(k)));}
   }
+  if(c.responsibilities!==undefined){
+   if(!Array.isArray(c.responsibilities)||c.responsibilities.length!==workLines(c.body).length)throw Error('工作項目的分工格式不正確。');
+   card.responsibilities=c.responsibilities.map(group=>{
+    if(!Array.isArray(group)||group.length>81)throw Error('工作項目的分工格式不正確。');
+    const names=new Set();
+    return group.map(a=>{
+     if(!a||(a.owner!==''&&!people.has(a.owner))||names.has(a.owner)||!Array.isArray(a.kinds)||a.kinds.length>workKinds.length||a.kinds.some(k=>!workKinds.includes(k))||new Set(a.kinds).size!==a.kinds.length)throw Error('工作項目的分工格式不正確。');
+     names.add(a.owner);return {owner:a.owner,kinds:workKinds.filter(k=>a.kinds.includes(k))};
+    }).filter(a=>a.owner||a.kinds.length);
+   });
+   delete card.assignees;delete card.kinds;hasResponsibilities=true;
+  }
   return card;});
  const links=x.links.map(e=>{if(!e||!ids.has(e.from)||!ids.has(e.to)||e.from===e.to||!Object.hasOwn(ports,e.a)||!Object.hasOwn(ports,e.b))throw Error('箭頭資料格式不正確。');const k=[e.from,e.a,e.to,e.b].join('|');if(seen.has(k))throw Error('箭頭重複。');seen.add(k);return {from:e.from,a:e.a,to:e.to,b:e.b};});
  const reference=x.caseReference==null?null:checkedReference(x.caseReference);
- return {version:hasNewKinds||x.version===5?5:hasWorkKinds||x.version===4?4:reference||x.version===3?3:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{}),...(reference?{caseReference:reference}:{})};
+ return {version:hasResponsibilities||x.version===6?6:hasNewKinds||x.version===5?5:hasWorkKinds||x.version===4?4:reference||x.version===3?3:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{}),...(reference?{caseReference:reference}:{})};
 }
 export function seedCanvas(board){
  const result={version:1,cards:[],links:[]};let main=0,side=0,y=36,ys=100,prev;
@@ -110,32 +122,48 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
  expand.onclick=()=>setExpanded(!expanded);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&gesture){e.preventDefault();clearGesture();draw();}else if(e.key==='Escape'&&expanded&&!dialog.open){setExpanded(false);expand.focus();}});
  function labelRows(){Array.from(rowBox.children).forEach((r,i)=>{
-  r.querySelector('input').setAttribute('aria-label','工作項目 '+(i+1));
-  r.querySelector('select').setAttribute('aria-label','工作項目 '+(i+1)+' 的負責行政');
-  r.querySelector('button').setAttribute('aria-label','移除工作項目 '+(i+1));
-  r.querySelector('summary').setAttribute('aria-label','工作項目 '+(i+1)+' 的對應大類');
+  const item='工作項目 '+(i+1);
+  r.querySelector('.cv-task-input').setAttribute('aria-label',item);
+  r.querySelector('.cv-work-remove').setAttribute('aria-label','移除'+item);
+  r.querySelector('.cv-add-staff').setAttribute('aria-label',item+'：新增負責行政');
+  Array.from(r.querySelectorAll('.cv-assignment')).forEach((slot,j)=>{
+   const n=item+' 的行政 '+(j+1);
+   slot.querySelector('select').setAttribute('aria-label',n);
+   slot.querySelector('summary').setAttribute('aria-label',n+' 的對應大類');
+   slot.querySelector('button').setAttribute('aria-label','移除'+n);
+  });
  });}
  function fillOwners(select,value){
   select.replaceChildren(new Option('未指定',''),...draftRoster.map(n=>new Option(n,n)));
   select.value=value;
  }
- function appendWork(value='',owner='',kinds=[]){
-  const row=E('div',null,'cv-work-row'),input=E('input'),select=E('select');
+ function appendWork(value='',responsibilities=[]){
+  const row=E('div',null,'cv-work-row'),input=E('input',null,'cv-task-input'),right=E('div',null,'cv-assignment-area'),list=E('div',null,'cv-assignment-list');
   input.type='text';input.value=value;input.maxLength=1600;input.placeholder='輸入工作項目';
-  fillOwners(select,owner);
-  const picker=E('details',null,'cv-kind-picker'),preview=E('summary'),checks=E('div',null,'cv-kind-options');
-  const picked=()=>Array.from(checks.querySelectorAll('input:checked'),b=>b.value);
-  const refresh=()=>{const values=picked();preview.textContent=values.join('、')||'選擇大類';preview.title=preview.textContent;};
-  for(const k of workKinds){
-   const label=E('label'),box=E('input');box.type='checkbox';box.value=k;box.checked=kinds.includes(k);
-   label.append(box,E('span',k));checks.append(label);box.addEventListener('change',refresh);
+  function appendAssignment(owner='',kinds=[]){
+   const slot=E('div',null,'cv-assignment'),top=E('div',null,'cv-assignment-top'),select=E('select');
+   fillOwners(select,owner);
+   const picker=E('details',null,'cv-kind-picker'),preview=E('summary'),checks=E('div',null,'cv-kind-options');
+   const refresh=()=>{const values=Array.from(checks.querySelectorAll('input:checked'),b=>b.value);preview.textContent=values.length?'對應大類：'+values.join('、'):'選擇對應大類';};
+   for(const k of workKinds){
+    const label=E('label'),box=E('input');box.type='checkbox';box.value=k;box.checked=kinds.includes(k);
+    label.append(box,E('span',k));checks.append(label);box.addEventListener('change',refresh);
+   }
+   picker.append(preview,checks);refresh();
+   const remove=act('×',()=>{
+    if(list.children.length===1){select.value='';for(const b of checks.querySelectorAll('input'))b.checked=false;refresh();picker.open=false;select.focus();return;}
+    const next=slot.nextElementSibling??slot.previousElementSibling;slot.remove();labelRows();next.querySelector('select').focus();
+   },'cv-assignment-remove');
+   top.append(select,remove);slot.append(top,picker);list.append(slot);labelRows();return select;
   }
-  picker.append(preview,checks);refresh();
+  const add=act('＋ 新增負責行政',()=>{if(list.children.length<81)appendAssignment().focus();},'cv-add-staff');
   const remove=act('×',()=>{
-   if(rowBox.children.length===1){input.value='';select.value='';for(const b of checks.querySelectorAll('input'))b.checked=false;refresh();picker.open=false;input.focus();return;}
-   const focus=row.nextElementSibling??row.previousElementSibling;row.remove();labelRows();focus.querySelector('input').focus();
+   if(rowBox.children.length===1){input.value='';list.replaceChildren();appendAssignment();input.focus();return;}
+   const focus=row.nextElementSibling??row.previousElementSibling;row.remove();labelRows();focus.querySelector('.cv-task-input').focus();
   },'cv-work-remove');
-  row.append(input,select,picker,remove);rowBox.append(row);labelRows();return input;
+  right.append(list,add);row.append(input,right,remove);rowBox.append(row);
+  if(responsibilities.length)for(const {owner,kinds} of responsibilities)appendAssignment(owner,kinds);else appendAssignment();
+  labelRows();return input;
  }
  function addPerson(){
   const name=nameInput.value.trim();
@@ -164,20 +192,25 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   $('canvasDialogTitle').textContent=c?'編輯圖卡':'新增圖卡';
   $('canvasTitle').value=c?.title??'';$('canvasDelete').hidden=!c;err.textContent='';
   draftRoster=(model.roster??[]).slice();nameInput.value='';rosterStatus.textContent='';$('canvasRosterPanel').open=false;
-  rowBox.replaceChildren();workLines(c?.body??'').forEach((line,i)=>appendWork(line,c?.assignees?.[i]??'',c?.kinds?.[i]??[]));
+  rowBox.replaceChildren();workLines(c?.body??'').forEach((line,i)=>appendWork(line,c?assignmentsFor(c,i):[]));
   dialog.showModal();$('canvasTitle').focus();
  }
  form.addEventListener('submit',async ev=>{
   ev.preventDefault();const title=$('canvasTitle').value.trim();if(!title){err.textContent='請輸入圖卡標題。';return;}
-  const rows=Array.from(rowBox.children,r=>({text:r.querySelector('input').value,owner:r.querySelector('select').value,kinds:Array.from(r.querySelectorAll('input[type=checkbox]:checked'),b=>b.value)}));
+  const rows=Array.from(rowBox.children,r=>({
+   text:r.querySelector('.cv-task-input').value,
+   people:Array.from(r.querySelectorAll('.cv-assignment'),a=>({owner:a.querySelector('select').value,kinds:Array.from(a.querySelectorAll('input:checked'),b=>b.value)})).filter(a=>a.owner||a.kinds.length)
+  }));
   const body=rows.map(r=>r.text).join('\n');
   if(body.length>1600){err.textContent='工作項目合計最多 1,600 字。';return;}
-  const missing=rows.findIndex(r=>!r.text.trim()&&(r.owner||r.kinds.length));
-  if(missing>=0){err.textContent='請填寫已指定行政或大類的工作項目。';rowBox.children[missing].querySelector('input').focus();return;}
+  const missing=rows.findIndex(r=>!r.text.trim()&&r.people.length);
+  if(missing>=0){err.textContent='請填寫已指定行政或大類的工作項目。';rowBox.children[missing].querySelector('.cv-task-input').focus();return;}
+  const duplicate=rows.findIndex(r=>new Set(r.people.map(a=>a.owner)).size!==r.people.length);
+  if(duplicate>=0){err.textContent='同一工作項目請不要重複選同一位行政；需要多個大類可直接在他的欄位複選。';rowBox.children[duplicate].querySelector('select').focus();return;}
   if(nameInput.value.trim()){$('canvasRosterPanel').open=true;err.textContent='名單欄位還有未加入的名稱，請先按「加入名單」或清空欄位。';nameInput.focus();return;}
   const v=copy(model);v.roster=draftRoster.slice();
-  const values={title,body,assignees:rows.map(r=>r.owner),kinds:rows.map(r=>r.kinds)};
-  if(editing){const c=v.cards.find(t=>t.id===editing);if(!c){err.textContent='這張圖卡已被移除。';return;}Object.assign(c,values);}
+  const values={title,body,responsibilities:rows.map(r=>r.people)};
+  if(editing){const c=v.cards.find(t=>t.id===editing);if(!c){err.textContent='這張圖卡已被移除。';return;}delete c.assignees;delete c.kinds;Object.assign(c,values);}
   else{let x=scroll.scrollLeft/zoom+32,y=scroll.scrollTop/zoom+48;const isNear=()=>v.cards.some(c=>Math.abs(c.x-x)<80&&Math.abs(c.y-y)<84);for(let i=0;i<8&&isNear();i++)y+=86;v.cards.push({id:id(),...values,x:cap(Math.round(x),0,12000),y:cap(Math.round(y),0,12000)});}
   if(await save(v,openingRev)){dialog.close();}
   else err.textContent=status.textContent+' 文字仍保留在這裡。';
@@ -334,13 +367,16 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
     const tasks=E('ul',null,'cv-card-tasks');
     lines.forEach((line,i)=>{
      if(!line.trim())return;
-     const item=E('li'),owner=c.assignees?.[i],kinds=c.kinds?.[i]??[];
-     item.append(E('span',line,'cv-task-name'));
-     if(owner)item.append(E('small','行政：'+owner,'cv-owner-tag'));
-     if(kinds.length){
-      const labels=E('div',null,'cv-card-kinds');labels.setAttribute('aria-label','對應大類');
-      for(const kind of kinds)labels.append(E('span',kind,'cv-card-kind'));
-      item.append(labels);
+     const item=E('li');item.append(E('span',line,'cv-task-name'));
+     for(const {owner,kinds} of assignmentsFor(c,i)){
+      if(!owner&&!kinds.length)continue;
+      const assignment=E('div',null,'cv-card-assignment');
+      assignment.append(E('small',owner?'行政：'+owner:'未指定行政','cv-owner-tag'));
+      if(kinds.length){
+       const labels=E('div',null,'cv-card-kinds');labels.setAttribute('aria-label','對應大類');
+       for(const kind of kinds)labels.append(E('span',kind,'cv-card-kind'));assignment.append(labels);
+      }
+      item.append(assignment);
      }
      tasks.append(item);
     });
