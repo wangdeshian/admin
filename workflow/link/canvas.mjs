@@ -1,5 +1,5 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { checkedReference } from './case-reference.mjs?v=caseRef6';
+import { checkedReference, workKinds } from './case-reference.mjs?v=workKinds7';
 const $=id=>document.getElementById(id);
 const E=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const NS='http://www.w3.org/2000/svg';
@@ -46,21 +46,25 @@ export function arrowDistance([x,y],[X,Y]){
 }
 export function canvasDocId(key){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('admin-workflow-canvas-v1:'+key)).then(b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));}
 export function checkedCanvas(x){
- if(!x||![1,2,3].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
+ if(!x||![1,2,3,4].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
  const ids=new Set(),seen=new Set();
  const roster=x.roster??[];
  if(!Array.isArray(roster)||roster.length>80||!roster.every(validName)||new Set(roster).size!==roster.length)throw Error('行政名單格式不正確。');
- const people=new Set(roster);
+ const people=new Set(roster);let hasWorkKinds=false;
  const cards=x.cards.map(c=>{if(!c||typeof c.id!=='string'||!/^[-a-zA-Z0-9_]{1,90}$/.test(c.id)||ids.has(c.id)||typeof c.title!=='string'||!c.title.trim()||c.title.length>120||typeof c.body!=='string'||c.body.length>1600||!['x','y'].every(k=>Number.isInteger(c[k])&&c[k]>=0&&c[k]<=12000))throw Error('圖卡資料格式不正確。');ids.add(c.id);
   const card={id:c.id,title:c.title,body:c.body,x:c.x,y:c.y};
   if(c.assignees!==undefined){
    if(!Array.isArray(c.assignees)||c.assignees.length!==workLines(c.body).length||!c.assignees.every(n=>n===''||people.has(n)))throw Error('工作項目分工格式不正確。');
    if(c.assignees.some(Boolean))card.assignees=c.assignees.slice();
   }
+  if(c.kinds!==undefined){
+   if(!Array.isArray(c.kinds)||c.kinds.length!==workLines(c.body).length||!c.kinds.every(ks=>Array.isArray(ks)&&ks.length<=workKinds.length&&ks.every(k=>workKinds.includes(k))&&ks.length===new Set(ks).size))throw Error('工作項目的大類格式不正確。');
+   if(c.kinds.some(ks=>ks.length)){hasWorkKinds=true;card.kinds=c.kinds.map(ks=>workKinds.filter(k=>ks.includes(k)));}
+  }
   return card;});
  const links=x.links.map(e=>{if(!e||!ids.has(e.from)||!ids.has(e.to)||e.from===e.to||!Object.hasOwn(ports,e.a)||!Object.hasOwn(ports,e.b))throw Error('箭頭資料格式不正確。');const k=[e.from,e.a,e.to,e.b].join('|');if(seen.has(k))throw Error('箭頭重複。');seen.add(k);return {from:e.from,a:e.a,to:e.to,b:e.b};});
  const reference=x.caseReference==null?null:checkedReference(x.caseReference);
- return {version:reference||x.version===3?3:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{}),...(reference?{caseReference:reference}:{})};
+ return {version:hasWorkKinds||x.version===4?4:reference||x.version===3?3:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{}),...(reference?{caseReference:reference}:{})};
 }
 export function seedCanvas(board){
  const result={version:1,cards:[],links:[]};let main=0,side=0,y=36,ys=100,prev;
@@ -102,20 +106,29 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   r.querySelector('input').setAttribute('aria-label','工作項目 '+(i+1));
   r.querySelector('select').setAttribute('aria-label','工作項目 '+(i+1)+' 的負責行政');
   r.querySelector('button').setAttribute('aria-label','移除工作項目 '+(i+1));
+  r.querySelector('summary').setAttribute('aria-label','工作項目 '+(i+1)+' 的對應大類');
  });}
  function fillOwners(select,value){
   select.replaceChildren(new Option('未指定',''),...draftRoster.map(n=>new Option(n,n)));
   select.value=value;
  }
- function appendWork(value='',owner=''){
+ function appendWork(value='',owner='',kinds=[]){
   const row=E('div',null,'cv-work-row'),input=E('input'),select=E('select');
   input.type='text';input.value=value;input.maxLength=1600;input.placeholder='輸入工作項目';
   fillOwners(select,owner);
+  const picker=E('details',null,'cv-kind-picker'),preview=E('summary'),checks=E('div',null,'cv-kind-options');
+  const picked=()=>Array.from(checks.querySelectorAll('input:checked'),b=>b.value);
+  const refresh=()=>{const values=picked();preview.textContent=values.join('、')||'選擇大類';preview.title=preview.textContent;};
+  for(const k of workKinds){
+   const label=E('label'),box=E('input');box.type='checkbox';box.value=k;box.checked=kinds.includes(k);
+   label.append(box,E('span',k));checks.append(label);box.addEventListener('change',refresh);
+  }
+  picker.append(preview,checks);refresh();
   const remove=act('×',()=>{
-   if(rowBox.children.length===1){input.value='';select.value='';input.focus();return;}
+   if(rowBox.children.length===1){input.value='';select.value='';for(const b of checks.querySelectorAll('input'))b.checked=false;refresh();picker.open=false;input.focus();return;}
    const focus=row.nextElementSibling??row.previousElementSibling;row.remove();labelRows();focus.querySelector('input').focus();
   },'cv-work-remove');
-  row.append(input,select,remove);rowBox.append(row);labelRows();return input;
+  row.append(input,select,picker,remove);rowBox.append(row);labelRows();return input;
  }
  function addPerson(){
   const name=nameInput.value.trim();
@@ -144,19 +157,19 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   $('canvasDialogTitle').textContent=c?'編輯圖卡':'新增圖卡';
   $('canvasTitle').value=c?.title??'';$('canvasDelete').hidden=!c;err.textContent='';
   draftRoster=(model.roster??[]).slice();nameInput.value='';rosterStatus.textContent='';$('canvasRosterPanel').open=false;
-  rowBox.replaceChildren();workLines(c?.body??'').forEach((line,i)=>appendWork(line,c?.assignees?.[i]??''));
+  rowBox.replaceChildren();workLines(c?.body??'').forEach((line,i)=>appendWork(line,c?.assignees?.[i]??'',c?.kinds?.[i]??[]));
   dialog.showModal();$('canvasTitle').focus();
  }
  form.addEventListener('submit',async ev=>{
   ev.preventDefault();const title=$('canvasTitle').value.trim();if(!title){err.textContent='請輸入圖卡標題。';return;}
-  const rows=Array.from(rowBox.children,r=>({text:r.querySelector('input').value,owner:r.querySelector('select').value}));
+  const rows=Array.from(rowBox.children,r=>({text:r.querySelector('input').value,owner:r.querySelector('select').value,kinds:Array.from(r.querySelectorAll('input[type=checkbox]:checked'),b=>b.value)}));
   const body=rows.map(r=>r.text).join('\n');
   if(body.length>1600){err.textContent='工作項目合計最多 1,600 字。';return;}
-  const missing=rows.findIndex(r=>!r.text.trim()&&r.owner);
-  if(missing>=0){err.textContent='請填寫已指定行政的工作項目。';rowBox.children[missing].querySelector('input').focus();return;}
+  const missing=rows.findIndex(r=>!r.text.trim()&&(r.owner||r.kinds.length));
+  if(missing>=0){err.textContent='請填寫已指定行政或大類的工作項目。';rowBox.children[missing].querySelector('input').focus();return;}
   if(nameInput.value.trim()){$('canvasRosterPanel').open=true;err.textContent='名單欄位還有未加入的名稱，請先按「加入名單」或清空欄位。';nameInput.focus();return;}
   const v=copy(model);v.roster=draftRoster.slice();
-  const values={title,body,assignees:rows.map(r=>r.owner)};
+  const values={title,body,assignees:rows.map(r=>r.owner),kinds:rows.map(r=>r.kinds)};
   if(editing){const c=v.cards.find(t=>t.id===editing);if(!c){err.textContent='這張圖卡已被移除。';return;}Object.assign(c,values);}
   else{let x=scroll.scrollLeft/zoom+32,y=scroll.scrollTop/zoom+48;const isNear=()=>v.cards.some(c=>Math.abs(c.x-x)<80&&Math.abs(c.y-y)<84);for(let i=0;i<8&&isNear();i++)y+=86;v.cards.push({id:id(),...values,x:cap(Math.round(x),0,12000),y:cap(Math.round(y),0,12000)});}
   if(await save(v,openingRev)){dialog.close();}
@@ -166,7 +179,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
  $('canvasRosterAdd').onclick=()=>addPerson();
  nameInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();addPerson();}});
  rowBox.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!e.isComposing&&e.target.tagName==='INPUT'){
+  if(e.key==='Enter'&&!e.isComposing&&e.target.tagName==='INPUT'&&e.target.type==='text'){
    e.preventDefault();appendWork().focus();
   }
  });

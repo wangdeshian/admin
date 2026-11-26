@@ -1,4 +1,5 @@
 export const caseKinds=['入境後','續聘','廢止','承接轉換','離境返鄉','護居展延'];
+export const workKinds=['基本文件',...caseKinds,'其他'];
 const $=id=>document.getElementById(id);
 const E=(tag,text,cls)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(cls)node.className=cls;return node;};
 const date=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;
@@ -30,11 +31,11 @@ export function mountCaseReference(api){
  };
  const fmt=new Intl.NumberFormat('zh-TW');
  const tile=(label,value)=>{
-  const c=E('div',null,'wl-case-tile');c.append(E('span',label),E('strong',fmt.format(value)+' 件'));return c;
+  const c=E('div',null,'wl-case-tile');c.append(E('span',label),E('strong',value===null?'不統計':fmt.format(value)+' 件'));return c;
  };
  return {draw(v){
   if(!v){period.textContent='尚未加入案件量統計。';grid.replaceChildren();return;}
   period.textContent=v.from.replaceAll('-','/')+' ～ '+v.to.replaceAll('-','/')+'，以登錄日計，含已下架。';
-  grid.replaceChildren(tile('六類合計',v.counts.reduce((a,b)=>a+b,0)),...caseKinds.map((n,i)=>tile(n,v.counts[i])));
+  grid.replaceChildren(tile('六類合計',v.counts.reduce((a,b)=>a+b,0)),...workKinds.map(n=>tile(n,v.counts[caseKinds.indexOf(n)]??null)));
  }};
 }

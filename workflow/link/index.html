@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
 <title>行政流程與交接｜連結共用版</title>
-<link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="canvas.css?v=caseRef6"><script type="module" src="board.mjs?v=caseRef6"></script>
+<link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="canvas.css?v=workKinds7"><script type="module" src="board.mjs?v=workKinds7"></script>
 <style>
 [hidden]{display:none!important}
 .workhead h2{font-size:1.75rem}
@@ -26,7 +26,7 @@
 <div class="cv-scroll" id="canvasScroll" tabindex="0" aria-label="圖卡畫布，可上下左右捲動"><div class="cv-surface" id="canvasSurface"><svg id="canvasLinks" class="cv-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><marker id="cvArrow" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#2c6daf"/></marker></defs><g id="canvasPaths"></g></svg><div id="canvasGuideX" class="cv-guide cv-guide-x" aria-hidden="true" hidden></div><div id="canvasGuideY" class="cv-guide cv-guide-y" aria-hidden="true" hidden></div><div id="canvasCards"></div><div id="canvasMeasures" aria-hidden="true"></div></div></div>
 </section>
 <section id="workloadPanel" aria-labelledby="workloadTitle" hidden>
-<div class="wl-head"><div><h2 id="workloadTitle">行政工作分配</h2><p>與「自由編排」上的圖卡同步。每個非空白工作項目算 1 項；占比以全部項目（含未分派）為分母，不代表實際工時。</p></div></div>
+<div class="wl-head"><div><h2 id="workloadTitle">行政工作分配</h2><p>與「自由編排」上的圖卡同步。每個非空白工作項目算 1 項；每個細項可對應多個大類。「全部大類」不重複計數，占比以目前查看的大類項目（含未分派）為分母，不代表工時。</p></div></div>
 <div id="workloadStatus" class="cv-status" role="status">正在載入圖卡…</div>
 <div id="workloadContent" hidden>
 <section class="wl-box wl-case-ref" aria-labelledby="caseRefTitle">
@@ -34,9 +34,9 @@
 <p id="caseRefPeriod" class="wl-muted"></p><div id="caseRefCounts" class="wl-case-counts"></div>
 <p class="wl-muted">這是案件量快照，和下方的圖卡工作項目分開計算，不會即時連線 LinkJet。</p>
 </section>
-<div id="workloadTotals" class="wl-totals" aria-label="項目總覽"></div>
+<div class="wl-filter wl-kind-filter"><label for="workloadKind">依大類查看</label><select id="workloadKind"></select></div><div id="workloadTotals" class="wl-totals" aria-label="項目總覽"></div>
 <div class="wl-box"><h3>各行政負責占比</h3><div id="workloadShares"></div></div>
-<div class="wl-box wl-list"><div class="wl-list-head"><h3>工作項目明細</h3><div class="wl-filter"><label for="workloadOwner">依負責人篩選</label><select id="workloadOwner"><option value="all">所有人</option></select></div></div><p id="workloadCount" class="wl-muted" aria-live="polite"></p><div class="wl-table-wrap"><table><thead><tr><th scope="col">來源圖卡</th><th scope="col">工作項目</th><th scope="col">負責行政</th></tr></thead><tbody id="workloadRows"></tbody></table></div></div>
+<div class="wl-box wl-list"><div class="wl-list-head"><h3>工作項目明細</h3><div class="wl-filter"><label for="workloadOwner">依負責人篩選</label><select id="workloadOwner"><option value="all">所有人</option></select></div></div><p id="workloadCount" class="wl-muted" aria-live="polite"></p><div class="wl-table-wrap"><table><thead><tr><th scope="col">來源圖卡</th><th scope="col">工作項目</th><th scope="col">負責行政</th><th scope="col">對應大類</th></tr></thead><tbody id="workloadRows"></tbody></table></div></div>
 </div></section></section>
 <footer>持有完整連結的人都能查看和修改。請勿填寫客戶資料、照護資訊或其他個資。</footer>
 </main>
@@ -44,6 +44,6 @@
 <p class="wl-muted">填入包含已下架的六類件數。更新後，使用完整共用網址的人都能看到。</p>
 <div class="fields"><label class="field"><span>起始日期</span><input type="date" id="caseRefFrom" required></label><label class="field"><span>結束日期</span><input type="date" id="caseRefTo" required></label><div id="caseRefInputs" class="fields wide"></div></div>
 <p id="caseRefError" class="error" role="alert"></p><div class="dialogfoot"><button type="button" id="caseRefCancel">取消</button><button type="submit" class="primary">儲存案件量</button></div></form></dialog>
-<dialog id="canvasDialog" aria-labelledby="canvasDialogTitle"><form id="canvasForm"><div class="dialoghead"><h2 id="canvasDialogTitle">新增圖卡</h2></div><div class="fields"><label class="field wide"><span>圖卡標題</span><input id="canvasTitle" maxlength="120" required></label><section class="wide cv-work" aria-labelledby="cvWorkLabel"><div class="cv-work-head"><strong id="cvWorkLabel">工作項目</strong><strong>負責行政</strong></div><div id="canvasWorkRows"></div><button type="button" id="canvasAddWork">＋ 新增工作項目</button><details id="canvasRosterPanel"><summary>新增行政人員</summary><p>建議用暱稱或代號。名單會和圖卡一起儲存，持有連結的人都看得到。</p><div class="cv-roster-entry"><input id="canvasRosterName" maxlength="40" aria-label="行政人員暱稱或代號" placeholder="輸入暱稱或代號"><button type="button" id="canvasRosterAdd">加入名單</button></div><p id="canvasRosterStatus" role="status"></p></details></section></div><p id="canvasError" class="error" role="alert"></p><div class="dialogfoot"><button type="button" id="canvasDelete" class="danger" hidden>刪除圖卡</button><button type="button" id="canvasCancel">取消</button><button type="submit" class="primary">儲存圖卡</button></div></form></dialog>
+<dialog id="canvasDialog" aria-labelledby="canvasDialogTitle"><form id="canvasForm"><div class="dialoghead"><h2 id="canvasDialogTitle">新增圖卡</h2></div><div class="fields"><label class="field wide"><span>圖卡標題</span><input id="canvasTitle" maxlength="120" required></label><section class="wide cv-work" aria-labelledby="cvWorkLabel"><div class="cv-work-head"><strong id="cvWorkLabel">工作項目</strong><strong>負責行政</strong><strong>對應大類</strong></div><div id="canvasWorkRows"></div><button type="button" id="canvasAddWork">＋ 新增工作項目</button><details id="canvasRosterPanel"><summary>新增行政人員</summary><p>建議用暱稱或代號。名單會和圖卡一起儲存，持有連結的人都看得到。</p><div class="cv-roster-entry"><input id="canvasRosterName" maxlength="40" aria-label="行政人員暱稱或代號" placeholder="輸入暱稱或代號"><button type="button" id="canvasRosterAdd">加入名單</button></div><p id="canvasRosterStatus" role="status"></p></details></section></div><p id="canvasError" class="error" role="alert"></p><div class="dialogfoot"><button type="button" id="canvasDelete" class="danger" hidden>刪除圖卡</button><button type="button" id="canvasCancel">取消</button><button type="submit" class="primary">儲存圖卡</button></div></form></dialog>
 </body>
 </html>
