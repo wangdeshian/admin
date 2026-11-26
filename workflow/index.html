@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>行政流程與交接｜工作看板</title>
-<link rel="stylesheet" href="style.css"><script src="flow-board.js" defer></script>
+<link rel="stylesheet" href="style.css"><script src="sketch-board.js" defer></script>
 <style>
 [hidden]{display:none!important}
 .workhead h2{font-size:1.75rem}
@@ -12,22 +12,28 @@
 .view-switch button{border:0;background:transparent;min-height:37px;padding:.35rem .72rem;font-size:.9rem}
 .view-switch button[aria-pressed=true]{background:white;color:var(--accent);box-shadow:0 1px 4px #15332825}
 .flow-hint{margin:-4px 0 14px;color:var(--muted);font-size:.88rem}
-.flow-map{display:flex;align-items:stretch;list-style:none;padding:15px;margin:0 0 16px;overflow-x:auto;border:1px solid var(--line);background:#eef3ed;border-radius:14px}
-.flow-step{display:flex;align-items:center;flex:1 0 170px;min-width:0}
-.flow-step:last-child{flex-basis:146px}
-.flow-node{width:100%;align-self:stretch;text-align:left;min-height:110px;border-color:#c9dbd0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;padding:10px 11px;overflow-wrap:anywhere}
-.flow-node strong{line-height:1.3}
-.flow-node[aria-pressed=true]{background:#dff3e8;border:2px solid var(--accent);padding:9px 10px}
-.flow-num{font-weight:800;font-size:.76rem;color:#fff;background:var(--accent);border-radius:6px;padding:1px 6px;letter-spacing:.07em}
-.flow-meta{font-size:.78rem;color:var(--muted);white-space:nowrap}
-.flow-tag{font-size:.75rem;color:#794507;background:#fff0d7;padding:0 6px;border-radius:5px}
-.flow-arrow{position:relative;flex:0 0 24px;height:2px;background:#688978}
-.flow-arrow::after{content:"";position:absolute;right:2px;top:-3px;width:6px;height:6px;border-top:2px solid #688978;border-right:2px solid #688978;transform:rotate(45deg)}
+.flow-map{display:grid;position:relative;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(36px,.45fr);column-gap:clamp(7px,2.6vw,30px);padding:24px clamp(10px,4.2vw,50px);margin:0 0 18px;border:1px solid #d9e5f1;border-radius:16px;background:radial-gradient(circle,#c1d5e7 1px,transparent 1.3px) 1px 1px/16px 16px,#f8fbff;overflow:hidden}
+.map-main,.map-side{list-style:none;margin:0;padding:0;min-width:0}
+.map-main{grid-column:2;grid-row:1}
+.map-side{grid-column:1;grid-row:1;padding-top:clamp(60px,9vw,90px);display:flex;flex-direction:column;gap:13px}
+.map-rail{grid-column:3;grid-row:1;position:relative}
+.map-step{min-width:0}
+.map-node,.map-add{position:relative;z-index:1;width:100%;min-height:82px;border:1px solid #9dbfe2;border-radius:15px;background:#fff;color:#183e67;text-align:left;padding:9px clamp(7px,1.7vw,18px);display:flex;flex-direction:column;justify-content:center;gap:3px;overflow-wrap:anywhere;box-shadow:0 4px 12px #29507c0e}
+.map-node:hover,.map-node[aria-pressed=true]{background:#e8f3ff;border-color:#2e68a5;box-shadow:inset 0 0 0 1px #2e68a5}
+.map-side .map-node{background:#f2f8ff}
+.map-side .map-node[aria-pressed=true]{background:#e0eeff}
+.map-node strong{line-height:1.3;font-size:clamp(.94rem,2.2vw,1.17rem)}
+.map-num{font-size:.72rem;font-weight:800;letter-spacing:.06em;color:#2b649c}
+.map-meta{font-size:.74rem;color:#4c6681}
+.map-add{min-height:48px;border-style:dashed;border-radius:12px;align-items:center;text-align:center;box-shadow:none;background:#f9fcff;font-size:.83rem}
+.map-arrow{display:block;position:relative;width:2px;height:28px;margin:0 auto;background:#5282b5}
+.map-arrow::after{content:"";position:absolute;bottom:2px;left:-3px;width:6px;height:6px;border-bottom:2px solid #5282b5;border-right:2px solid #5282b5;transform:rotate(45deg)}
+.map-route{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:#5282b5;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.map-return{position:absolute;z-index:1;top:var(--return-y,50%);right:2px;transform:translateY(-50%);writing-mode:vertical-rl;min-height:0;padding:6px 3px;color:#2a6096;font-size:.75rem;white-space:nowrap;background:#f8fbff;border-color:#b9d2ed;border-radius:7px}
 .group{scroll-margin-top:12px}
 .flow-map[hidden]+.detail-label{display:none}
 .detail-label{color:var(--accent);font-size:.78rem;font-weight:800;letter-spacing:.08em;margin:0 0 7px}
-@media(max-width:720px){.flow-map{flex-direction:column;padding:10px 14px;overflow:visible}.flow-step,.flow-step:last-child{flex:auto;flex-direction:column}.flow-node{min-height:52px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:9px;row-gap:2px;padding:8px 10px;font-size:.9rem}.flow-node[aria-pressed=true]{padding:7px 9px}.flow-tag{grid-column:2;justify-self:start}.flow-arrow{width:2px;flex:0 0 9px;transform:rotate(90deg);height:2px;width:9px;flex-basis:2px;margin:4px 0}.workhead{gap:8px}.flow-hint{margin:0 0 10px}}
-@media(max-width:345px){.flow-node{grid-template-columns:auto minmax(0,1fr)}.flow-meta{grid-column:2;white-space:normal}}
+@media(max-width:720px){.workhead{gap:8px}.flow-hint{margin:0 0 10px}.flow-map{grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 36px}.map-side{padding-top:60px}}
 </style>
 </head>
 <body>
@@ -43,8 +49,8 @@
 <section id="stats" class="stats" aria-label="工作摘要"></section>
 <section class="work">
 <div class="workhead"><div><div class="eyebrow">工作總覽</div><h2>流程看板</h2></div><div class="view-switch" role="group" aria-label="顯示方式"><button type="button" id="flowMode" aria-pressed="true">流程圖</button><button type="button" id="listMode" aria-pressed="false">全部清單</button></div><div class="filter"><label><span class="sr">搜尋</span><input type="search" id="query" placeholder="搜尋項目、主責、接手人"></label><label><span class="sr">篩選狀態</span><select id="filter"><option value="">全部項目</option><option>待分工</option><option>待開始</option><option>進行中</option><option>待交接</option><option>已完成</option><option>已逾期</option></select></label></div></div>
-<p class="flow-hint">箭頭表示目前的區塊排列。點選任一節點，查看分工與工作進度。</p>
-<ol id="flowMap" class="flow-map" aria-label="行政流程圖" hidden></ol>
+<p class="flow-hint">中間是主流程，左側是獨立區塊，右側箭頭從最後一步繞回起點。點方框可看工作與分工。</p>
+<div id="flowMap" class="flow-map" role="region" aria-label="行政流程圖" hidden></div>
 <p class="detail-label">區塊明細</p>
 <div id="board"></div>
 </section>
