@@ -1,3 +1,4 @@
+import { mountCaseReference } from './case-reference.mjs?v=caseRef6';
 const $=id=>document.getElementById(id);
 const el=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const percent=new Intl.NumberFormat('zh-TW',{style:'percent',maximumFractionDigits:1});
@@ -15,7 +16,8 @@ export function workloadFor(model){
  return {rows,shares,total:rows.length,unassigned,assigned:rows.length-unassigned};
 }
 
-export function mountWorkload(edit){
+export function mountWorkload(edit,referenceApi){
+ const caseRef=mountCaseReference(referenceApi);
  const panel=$('workloadPanel'),select=$('workloadOwner'),statusNode=$('workloadStatus');
  let data,filter='all';
  const filterValue=name=>name?'person:'+name:'unassigned';
@@ -65,11 +67,11 @@ export function mountWorkload(edit){
   select.replaceChildren(new Option('所有人','all'),new Option('未分派','unassigned'),...data.shares.map(p=>new Option(p.name,filterValue(p.name))));
   if(!Array.from(select.options).some(o=>o.value===filter))filter='all';
   select.value=filter;
-  totals();shares();drawRows();$('workloadContent').hidden=false;
+  caseRef.draw(data.reference);totals();shares();drawRows();$('workloadContent').hidden=false;
   if(focusedShare!==null)Array.from($('workloadShares').querySelectorAll('button')).find(b=>b.dataset.filter===focusedShare)?.focus({preventScroll:true});
  }
  return {
-  update(model){data=workloadFor(model);render();},
+  update(model){data={...workloadFor(model),reference:model.caseReference};render();},
   status(message){statusNode.textContent=message;},
   show(){render();}
  };

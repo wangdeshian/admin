@@ -1,4 +1,5 @@
 import { connect } from './sync.mjs?v=canvas1';
+import { checkedReference } from './case-reference.mjs?v=caseRef6';
 const $=id=>document.getElementById(id);
 const E=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const NS='http://www.w3.org/2000/svg';
@@ -45,7 +46,7 @@ export function arrowDistance([x,y],[X,Y]){
 }
 export function canvasDocId(key){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('admin-workflow-canvas-v1:'+key)).then(b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));}
 export function checkedCanvas(x){
- if(!x||![1,2].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
+ if(!x||![1,2,3].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
  const ids=new Set(),seen=new Set();
  const roster=x.roster??[];
  if(!Array.isArray(roster)||roster.length>80||!roster.every(validName)||new Set(roster).size!==roster.length)throw Error('行政名單格式不正確。');
@@ -58,7 +59,8 @@ export function checkedCanvas(x){
   }
   return card;});
  const links=x.links.map(e=>{if(!e||!ids.has(e.from)||!ids.has(e.to)||e.from===e.to||!Object.hasOwn(ports,e.a)||!Object.hasOwn(ports,e.b))throw Error('箭頭資料格式不正確。');const k=[e.from,e.a,e.to,e.b].join('|');if(seen.has(k))throw Error('箭頭重複。');seen.add(k);return {from:e.from,a:e.a,to:e.to,b:e.b};});
- return {version:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{})};
+ const reference=x.caseReference==null?null:checkedReference(x.caseReference);
+ return {version:reference||x.version===3?3:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{}),...(reference?{caseReference:reference}:{})};
 }
 export function seedCanvas(board){
  const result={version:1,cards:[],links:[]};let main=0,side=0,y=36,ys=100,prev;
@@ -289,5 +291,8 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
   try{const next=rev===0?seedCanvas(latestSeed):checkedCanvas(JSON.parse(payload));if(gesture&&rev===revision)return;if(gesture)gesture=null;model=next;revision=rev;if(port&&!model.cards.some(c=>c.id===port.id))port=null;draw();onChange(model);if(first){first=false;if(scroll.clientWidth<620&&model.cards.some(c=>c.x===300))scroll.scrollLeft=260;}setStatus(rev===0?'已帶入原流程。移動、編輯或連線後會儲存畫布。':'已同步');}
   catch(e){setStatus(e.message);}
  }},{derive:canvasDocId});
- return {show(){edges();},seed(v){latestSeed=v;},edit(id){const card=model.cards.find(c=>c.id===id);if(card)open(card);}};
+ return {show(){edges();},seed(v){latestSeed=v;},edit(id){const card=model.cards.find(c=>c.id===id);if(card)open(card);},
+  reference(){return {value:model.caseReference??null,rev:revision};},
+  saveReference(value,rev){return save({...copy(model),caseReference:value},rev);}
+ };
 }

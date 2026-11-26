@@ -1,6 +1,6 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { mountCanvas } from './canvas.mjs?v=measure5';
-import { mountWorkload } from './workload.mjs?v=workload4';
+import { mountCanvas } from './canvas.mjs?v=caseRef6';
+import { mountWorkload } from './workload.mjs?v=caseRef6';
 const $=id=>document.getElementById(id);
 const statuses=['待分工','待開始','進行中','待交接','已完成'];
 const seed=[
@@ -35,7 +35,7 @@ function checked(x){
 }
 
 let view='canvas',canvas,revision=null;
-const workload=mountWorkload(id=>canvas?.edit(id));
+const workload=mountWorkload(id=>canvas?.edit(id),{read:()=>canvas?.reference(),save:(value,rev)=>canvas?.saveReference(value,rev)});
 function renderView(){
  const showing=view==='canvas';
  $('canvasMode').setAttribute('aria-pressed',String(showing));
