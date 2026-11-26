@@ -1,5 +1,5 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { mountCanvas } from './canvas.mjs?v=canvas1';
+import { mountCanvas } from './canvas.mjs?v=wide2';
 const $=id=>document.getElementById(id);
 const el=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 
@@ -60,65 +60,15 @@ function matches(i,v){return !v||(v==='已逾期'?late(i):v==='待分工'?i.stat
 function btn(label,fn,cls,title){const n=el('button',label,cls);n.type='button';if(title){n.title=title;n.setAttribute('aria-label',title);}n.addEventListener('click',fn);return n;}
 
 let selectedGroup=null, view='canvas', canvas;
-
 const lane=g=>g.flowLane??(g.id==='g4'?'side':'main');
-let routeObserver;
-function drawFlow(){
- const flow=$('flowMap');routeObserver?.disconnect();flow.replaceChildren();flow.hidden=view!=='flow'||!state.groups.length;
- $('flowMode').setAttribute('aria-pressed',String(view==='flow'));$('listMode').setAttribute('aria-pressed',String(view==='list'));
- if(flow.hidden)return;
- const main=el('ol',null,'map-main'), side=el('ul',null,'map-side'), rail=el('div',null,'map-rail');
- main.setAttribute('aria-label','主流程');side.setAttribute('aria-label','側邊區塊');
- const sequence=state.groups.filter(g=>lane(g)==='main'), extra=state.groups.filter(g=>lane(g)==='side');
- const jump=g=>{
-   selectedGroup=g.id;$('query').value='';$('filter').value='';render();
-   const section=$('group-'+g.id);section?.focus({preventScroll:true});
-   section?.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
- };
- const makeNode=(g,index,isSide)=>{
-   const items=state.items.filter(i=>i.groupId===g.id);
-   const doneCount=items.filter(i=>i.status==='已完成').length;
-   const step=el('li',null,'map-step');
-   const b=btn('',()=>jump(g),'map-node');
-   b.setAttribute('aria-controls','board');
-   b.setAttribute('aria-pressed',String(g.id===selectedGroup&&!$('query').value.trim()&&!$('filter').value));
-   b.append(el('span',isSide?'獨立區塊':String(index+1).padStart(2,'0'),'map-num'),el('strong',g.name),el('span',items.length+' 項 · '+doneCount+' 完成','map-meta'));
-   step.append(b);
-   if(!isSide&&index<sequence.length-1){const a=el('span',null,'map-arrow');a.setAttribute('aria-hidden','true');step.append(a);}
-   return step;
- };
- sequence.forEach((g,i)=>main.append(makeNode(g,i,false)));
- if(!sequence.length){const slot=el('li');slot.append(btn('＋ 新增主流程',()=>openGroup(undefined,'main'),'map-add'));main.append(slot);}
- extra.forEach((g,i)=>side.append(makeNode(g,i,true)));
- const slot=el('li');slot.append(btn('＋ 側邊區塊',()=>openGroup(undefined,'side'),'map-add'));side.append(slot);
- flow.append(main,side,rail);
- if(sequence.length>1){
-   const ns='http://www.w3.org/2000/svg', svg=document.createElementNS(ns,'svg'), path=document.createElementNS(ns,'path'), head=document.createElementNS(ns,'path');
-   svg.classList.add('map-route');svg.setAttribute('aria-hidden','true');svg.append(path,head);flow.append(svg);
-   rail.append(btn('回到起點',()=>jump(sequence[0]),'map-return'));
-   const update=()=>{
-     const box=flow.getBoundingClientRect(), first=main.firstElementChild.firstElementChild.getBoundingClientRect(), last=main.lastElementChild.firstElementChild.getBoundingClientRect(), r=rail.getBoundingClientRect();
-     if(!box.width)return;
-     const x=first.right-box.left+2, y=first.top+first.height/2-box.top, b=last.top+last.height/2-box.top, rx=r.right-box.left-3;
-     const bend=Math.min(16,Math.max(6,(rx-x)/2));
-     svg.setAttribute('viewBox','0 0 '+box.width+' '+box.height);
-     path.setAttribute('d','M '+x+' '+b+' H '+(rx-bend)+' Q '+rx+' '+b+' '+rx+' '+(b-bend)+' V '+(y+bend)+' Q '+rx+' '+y+' '+(rx-bend)+' '+y+' H '+(x+2));
-     head.setAttribute('d','M '+(x+9)+' '+(y-5)+' L '+(x+2)+' '+y+' L '+(x+9)+' '+(y+5));
-     rail.style.setProperty('--return-y',((y+b)/2-(r.top-box.top))+'px');
-   };
-   update();
-   if(typeof ResizeObserver!=='undefined'){routeObserver=new ResizeObserver(update);routeObserver.observe(flow);routeObserver.observe(main);}
- }
-}
 function render(){
- if(!state.groups.some(g=>g.id===selectedGroup))selectedGroup=state.groups[0]?.id??null;
+ $('listMode').setAttribute('aria-pressed',String(view==='list'));
  $('canvasMode').setAttribute('aria-pressed',String(view==='canvas'));
  $('canvasPanel').hidden=view!=='canvas';
  $('legacyPanel').hidden=view==='canvas';
  $('oldActions').hidden=view==='canvas';
  $('stats').hidden=view==='canvas';
  if(view==='canvas'){if(!canvas&&syncStatus==='ready')canvas=mountCanvas(state);else canvas?.seed(state);canvas?.show();}
- drawFlow();
  const filter=$('filter').value;
  const q=$('query').value.trim().toLocaleLowerCase();
  const stats=[['全部項目','',state.items.length],['待分工','待分工',state.items.filter(i=>matches(i,'待分工')).length],['待交接','待交接',state.items.filter(i=>i.status==='待交接').length],['已逾期','已逾期',state.items.filter(late).length]];
@@ -129,7 +79,6 @@ function render(){
   const all=state.items.filter(i=>i.groupId===g.id);
   const items=all.filter(i=>matches(i,filter)&&(!q||[g.name,i.name,i.owner,i.backup,i.handoff,i.next,i.notes].join(' ').toLocaleLowerCase().includes(q)));
   if((q||filter)&&!items.length)return;
-  if(view==='flow'&&!q&&!filter&&g.id!==selectedGroup)return;
   groups++;
   const section=el('section',null,'group'), head=el('div',null,'group-head'), name=el('div');
   section.id='group-'+g.id;section.tabIndex=-1;
@@ -209,7 +158,6 @@ for(const n of document.querySelectorAll('[data-close]'))n.addEventListener('cli
 $('newItem').addEventListener('click',()=>openItem());
 $('newGroup').addEventListener('click',()=>openGroup());
 $('canvasMode').addEventListener('click',()=>{view='canvas';render();});
-$('flowMode').addEventListener('click',()=>{view='flow';render();});
 $('listMode').addEventListener('click',()=>{view='list';render();});
 $('filter').addEventListener('change',render);$('query').addEventListener('input',render);
 $('backup').addEventListener('click',()=>{$('backupError').textContent='';importRevision=revision;$('backupDialog').showModal();});

@@ -6,13 +6,24 @@ const ports={t:'上',r:'右',b:'下',l:'左'};
 const cap=(n,lo,hi)=>Math.min(hi,Math.max(lo,n));
 const id=()=>crypto.randomUUID();
 const copy=o=>JSON.parse(JSON.stringify(o));
+const workLines=body=>body.replace(/\r\n?/g,'\n').split('\n');
+const validName=n=>typeof n==='string'&&n.trim()===n&&n.length>0&&n.length<=40&&!/[\r\n]/.test(n);
 export function canvasDocId(key){return crypto.subtle.digest('SHA-256',new TextEncoder().encode('admin-workflow-canvas-v1:'+key)).then(b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));}
 export function checkedCanvas(x){
- if(!x||x.version!==1||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
+ if(!x||![1,2].includes(x.version)||!Array.isArray(x.cards)||!Array.isArray(x.links)||x.cards.length>160||x.links.length>450)throw Error('無法讀取圖卡資料。');
  const ids=new Set(),seen=new Set();
- const cards=x.cards.map(c=>{if(!c||typeof c.id!=='string'||!/^[-a-zA-Z0-9_]{1,90}$/.test(c.id)||ids.has(c.id)||typeof c.title!=='string'||!c.title.trim()||c.title.length>120||typeof c.body!=='string'||c.body.length>1600||!['x','y'].every(k=>Number.isInteger(c[k])&&c[k]>=0&&c[k]<=12000))throw Error('圖卡資料格式不正確。');ids.add(c.id);return {id:c.id,title:c.title,body:c.body,x:c.x,y:c.y};});
+ const roster=x.roster??[];
+ if(!Array.isArray(roster)||roster.length>80||!roster.every(validName)||new Set(roster).size!==roster.length)throw Error('行政名單格式不正確。');
+ const people=new Set(roster);
+ const cards=x.cards.map(c=>{if(!c||typeof c.id!=='string'||!/^[-a-zA-Z0-9_]{1,90}$/.test(c.id)||ids.has(c.id)||typeof c.title!=='string'||!c.title.trim()||c.title.length>120||typeof c.body!=='string'||c.body.length>1600||!['x','y'].every(k=>Number.isInteger(c[k])&&c[k]>=0&&c[k]<=12000))throw Error('圖卡資料格式不正確。');ids.add(c.id);
+  const card={id:c.id,title:c.title,body:c.body,x:c.x,y:c.y};
+  if(c.assignees!==undefined){
+   if(!Array.isArray(c.assignees)||c.assignees.length!==workLines(c.body).length||!c.assignees.every(n=>n===''||people.has(n)))throw Error('工作項目分工格式不正確。');
+   if(c.assignees.some(Boolean))card.assignees=c.assignees.slice();
+  }
+  return card;});
  const links=x.links.map(e=>{if(!e||!ids.has(e.from)||!ids.has(e.to)||e.from===e.to||!Object.hasOwn(ports,e.a)||!Object.hasOwn(ports,e.b))throw Error('箭頭資料格式不正確。');const k=[e.from,e.a,e.to,e.b].join('|');if(seen.has(k))throw Error('箭頭重複。');seen.add(k);return {from:e.from,a:e.a,to:e.to,b:e.b};});
- return {version:1,cards,links};
+ return {version:roster.length||x.version===2?2:1,cards,links,...(roster.length?{roster:roster.slice()}:{})};
 }
 export function seedCanvas(board){
  const result={version:1,cards:[],links:[]};let main=0,side=0,y=36,ys=100,prev;
@@ -31,6 +42,53 @@ export function mountCanvas(seed){
  const scroll=$('canvasScroll'),surface=$('canvasSurface'),cards=$('canvasCards'),svg=$('canvasLinks'),status=$('canvasStatus'),hint=$('canvasHint'),dialog=$('canvasDialog'),form=$('canvasForm'),err=$('canvasError');
  let model={version:1,cards:[],links:[]},revision=null,busy=false,port=null,openingRev=null,editing=null,latestSeed=seed,first=true,gesture=null;
  const nodes=new Map();let observer,cloud;
+ const rowBox=$('canvasWorkRows'),nameInput=$('canvasRosterName'),rosterStatus=$('canvasRosterStatus');
+ let draftRoster=[],zoom=1,expanded=false;
+ const panel=$('canvasPanel'),zOut=$('canvasZoomOut'),zIn=$('canvasZoomIn'),zReset=$('canvasZoomReset'),expand=$('canvasExpand');
+ function setZoom(next){
+  if(gesture)return;
+  const value=cap(Math.round(next*10)/10,.6,1.8);if(value===zoom)return;
+  const x=(scroll.scrollLeft+scroll.clientWidth/2)/zoom,y=(scroll.scrollTop+scroll.clientHeight/2)/zoom;
+  zoom=value;surface.style.zoom=zoom;const pct=Math.round(zoom*100)+'%';
+  zReset.textContent=pct;zReset.setAttribute('aria-label','回到原始大小，目前 '+pct);
+  zOut.disabled=zoom<=.6;zIn.disabled=zoom>=1.8;
+  scroll.scrollLeft=x*zoom-scroll.clientWidth/2;scroll.scrollTop=y*zoom-scroll.clientHeight/2;edges();
+ }
+ zOut.onclick=()=>setZoom(zoom-.1);zIn.onclick=()=>setZoom(zoom+.1);zReset.onclick=()=>setZoom(1);
+ function setExpanded(value){
+  expanded=value;panel.classList.toggle('cv-expanded',value);document.body.classList.toggle('cv-expanded-page',value);
+  expand.textContent=value?'離開全畫面':'全畫面';expand.setAttribute('aria-pressed',String(value));edges();
+ }
+ expand.onclick=()=>setExpanded(!expanded);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&expanded&&!dialog.open){setExpanded(false);expand.focus();}});
+ function labelRows(){Array.from(rowBox.children).forEach((r,i)=>{
+  r.querySelector('input').setAttribute('aria-label','工作項目 '+(i+1));
+  r.querySelector('select').setAttribute('aria-label','工作項目 '+(i+1)+' 的負責行政');
+  r.querySelector('button').setAttribute('aria-label','移除工作項目 '+(i+1));
+ });}
+ function fillOwners(select,value){
+  select.replaceChildren(new Option('未指定',''),...draftRoster.map(n=>new Option(n,n)));
+  select.value=value;
+ }
+ function appendWork(value='',owner=''){
+  const row=E('div',null,'cv-work-row'),input=E('input'),select=E('select');
+  input.type='text';input.value=value;input.maxLength=1600;input.placeholder='輸入工作項目';
+  fillOwners(select,owner);
+  const remove=act('×',()=>{
+   if(rowBox.children.length===1){input.value='';select.value='';input.focus();return;}
+   const focus=row.nextElementSibling??row.previousElementSibling;row.remove();labelRows();focus.querySelector('input').focus();
+  },'cv-work-remove');
+  row.append(input,select,remove);rowBox.append(row);labelRows();return input;
+ }
+ function addPerson(){
+  const name=nameInput.value.trim();
+  if(!validName(name)){rosterStatus.textContent='請輸入暱稱或代號。';nameInput.focus();return false;}
+  if(draftRoster.includes(name)){rosterStatus.textContent='這個人已在下拉選單裡。';return false;}
+  if(draftRoster.length>=80){rosterStatus.textContent='行政名單最多 80 位。';return false;}
+  draftRoster.push(name);nameInput.value='';
+  for(const select of rowBox.querySelectorAll('select'))fillOwners(select,select.value);
+  rosterStatus.textContent='已加入下拉選單。儲存圖卡後會同步。';return true;
+ }
  function setStatus(s){status.textContent=s;}
  const act=(label,fn,cls)=>{const b=E('button',label,cls);b.type='button';b.addEventListener('click',fn);return b;};
  function can(){if(revision===null){setStatus('尚未連線，暫時不能儲存。');return false;}if(busy){setStatus('正在儲存，請稍候。');return false;}return true;}
@@ -47,16 +105,33 @@ export function mountCanvas(seed){
   if(!can())return;
   editing=c?.id??null;openingRev=revision;
   $('canvasDialogTitle').textContent=c?'編輯圖卡':'新增圖卡';
-  $('canvasTitle').value=c?.title??'';$('canvasBody').value=c?.body??'';$('canvasDelete').hidden=!c;err.textContent='';
+  $('canvasTitle').value=c?.title??'';$('canvasDelete').hidden=!c;err.textContent='';
+  draftRoster=(model.roster??[]).slice();nameInput.value='';rosterStatus.textContent='';$('canvasRosterPanel').open=false;
+  rowBox.replaceChildren();workLines(c?.body??'').forEach((line,i)=>appendWork(line,c?.assignees?.[i]??''));
   dialog.showModal();$('canvasTitle').focus();
  }
  form.addEventListener('submit',async ev=>{
-  ev.preventDefault();const title=$('canvasTitle').value.trim(),body=$('canvasBody').value;if(!title){err.textContent='請輸入圖卡標題。';return;}
-  const v=copy(model);
-  if(editing){const c=v.cards.find(t=>t.id===editing);if(!c){err.textContent='這張圖卡已被移除。';return;}Object.assign(c,{title,body});}
-  else{let x=scroll.scrollLeft+32,y=scroll.scrollTop+48;const isNear=()=>v.cards.some(c=>Math.abs(c.x-x)<80&&Math.abs(c.y-y)<84);for(let i=0;i<8&&isNear();i++)y+=86;v.cards.push({id:id(),title,body,x:cap(Math.round(x),0,12000),y:cap(Math.round(y),0,12000)});}
+  ev.preventDefault();const title=$('canvasTitle').value.trim();if(!title){err.textContent='請輸入圖卡標題。';return;}
+  const rows=Array.from(rowBox.children,r=>({text:r.querySelector('input').value,owner:r.querySelector('select').value}));
+  const body=rows.map(r=>r.text).join('\n');
+  if(body.length>1600){err.textContent='工作項目合計最多 1,600 字。';return;}
+  const missing=rows.findIndex(r=>!r.text.trim()&&r.owner);
+  if(missing>=0){err.textContent='請填寫已指定行政的工作項目。';rowBox.children[missing].querySelector('input').focus();return;}
+  if(nameInput.value.trim()){$('canvasRosterPanel').open=true;err.textContent='名單欄位還有未加入的名稱，請先按「加入名單」或清空欄位。';nameInput.focus();return;}
+  const v=copy(model);v.roster=draftRoster.slice();
+  const values={title,body,assignees:rows.map(r=>r.owner)};
+  if(editing){const c=v.cards.find(t=>t.id===editing);if(!c){err.textContent='這張圖卡已被移除。';return;}Object.assign(c,values);}
+  else{let x=scroll.scrollLeft/zoom+32,y=scroll.scrollTop/zoom+48;const isNear=()=>v.cards.some(c=>Math.abs(c.x-x)<80&&Math.abs(c.y-y)<84);for(let i=0;i<8&&isNear();i++)y+=86;v.cards.push({id:id(),...values,x:cap(Math.round(x),0,12000),y:cap(Math.round(y),0,12000)});}
   if(await save(v,openingRev)){dialog.close();}
   else err.textContent=status.textContent+' 文字仍保留在這裡。';
+ });
+ $('canvasAddWork').onclick=()=>appendWork().focus();
+ $('canvasRosterAdd').onclick=()=>addPerson();
+ nameInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();addPerson();}});
+ rowBox.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.isComposing&&e.target.tagName==='INPUT'){
+   e.preventDefault();appendWork().focus();
+  }
  });
  $('canvasCancel').onclick=()=>dialog.close();
  $('canvasDelete').onclick=async()=>{
@@ -84,7 +159,7 @@ export function mountCanvas(seed){
  }
  function drag(ev,c){
   if(gesture?.id!==c.id||gesture.p!==ev.pointerId)return;
-  const g=gesture;g.nx=cap(Math.round(g.bx+ev.clientX-g.x),0,12000);g.ny=cap(Math.round(g.by+ev.clientY-g.y),0,12000);position(c,g.nx,g.ny);
+  const g=gesture;g.nx=cap(Math.round(g.bx+(ev.clientX-g.x)/zoom),0,12000);g.ny=cap(Math.round(g.by+(ev.clientY-g.y)/zoom),0,12000);position(c,g.nx,g.ny);
  }
  function endDrag(ev,c,cancel){
   if(gesture?.id!==c.id||gesture.p!==ev.pointerId)return;
@@ -94,7 +169,7 @@ export function mountCanvas(seed){
   save(v,g.rev).then(ok=>{if(!ok)draw();});
  }
  function edges(){
-  const root=surface.getBoundingClientRect();const scene=node=>{const r=node.getBoundingClientRect();return {x:r.left-root.left,y:r.top-root.top,w:r.width,h:r.height};};
+  const root=surface.getBoundingClientRect();const scene=node=>{const r=node.getBoundingClientRect();return {x:(r.left-root.left)/zoom,y:(r.top-root.top)/zoom,w:r.width/zoom,h:r.height/zoom};};
   const xy=(n,p)=>{const r=scene(n);return p==='l'?[r.x,r.y+r.h/2,-1,0]:p==='r'?[r.x+r.w,r.y+r.h/2,1,0]:p==='t'?[r.x+r.w/2,r.y,0,-1]:[r.x+r.w/2,r.y+r.h,0,1];};
   $('canvasPaths').replaceChildren();
   model.links.forEach(e=>{const a=nodes.get(e.from),b=nodes.get(e.to);if(!a||!b)return;
@@ -110,7 +185,13 @@ export function mountCanvas(seed){
    const n=E('article',null,'cv-card');n.style.left=c.x+'px';n.style.top=c.y+'px';
    const header=E('div',null,'cv-card-head'),grip=act('⠿',()=>{},'cv-grip');grip.setAttribute('aria-label','移動圖卡：'+c.title);grip.title='拖曳移動，也可用方向鍵';
    const edit=act('編輯',()=>open(c));edit.setAttribute('aria-label','編輯圖卡：'+c.title);
-   header.append(grip,E('h3',c.title),edit);n.append(header,E('p',c.body||'尚未填寫內容'));
+   header.append(grip,E('h3',c.title),edit);n.append(header);
+   if(c.assignees?.some(Boolean)){
+    const tasks=E('ul',null,'cv-card-tasks');workLines(c.body).forEach((line,i)=>{
+     const item=E('li');item.append(E('span',line||' '));
+     if(c.assignees[i])item.append(E('small',c.assignees[i],'cv-owner-tag'));tasks.append(item);
+    });n.append(tasks);
+   }else n.append(E('p',c.body||'尚未填寫內容'));
    grip.addEventListener('pointerdown',e=>startDrag(e,c,n));grip.addEventListener('pointermove',e=>drag(e,c));grip.addEventListener('pointerup',e=>endDrag(e,c,false));grip.addEventListener('pointercancel',e=>endDrag(e,c,true));
    grip.addEventListener('keydown',e=>{const shifts={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(!shifts[e.key])return;e.preventDefault();const [dx,dy]=shifts[e.key],v=copy(model),t=v.cards.find(t=>t.id===c.id);const step=e.shiftKey?60:16;t.x=cap(t.x+dx*step,0,12000);t.y=cap(t.y+dy*step,0,12000);save(v).then(()=>nodes.get(c.id)?.querySelector('.cv-grip')?.focus({preventScroll:true}));});
    for(const [k,label] of Object.entries(ports)){const b=act('',()=>linkFrom(c,k),'cv-port cv-port-'+k);b.setAttribute('aria-label',c.title+'：'+label+'方接點');b.setAttribute('aria-pressed',String(port?.id===c.id&&port.p===k));n.append(b);}
