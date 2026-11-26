@@ -1,6 +1,6 @@
 import { connect } from './sync.mjs?v=canvas1';
-import { mountCanvas } from './canvas.mjs?v=multiOwner11';
-import { mountWorkload } from './workload.mjs?v=multiOwner11';
+import { mountCanvas } from './canvas.mjs?v=staffColors12';
+import { mountWorkload } from './workload.mjs?v=staffColors12';
 const $=id=>document.getElementById(id);
 const statuses=['待分工','待開始','進行中','待交接','已完成'];
 const seed=[

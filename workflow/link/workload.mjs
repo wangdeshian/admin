@@ -1,4 +1,5 @@
-import { mountCaseReference, workKinds, assignmentsFor } from './case-reference.mjs?v=multiOwner11';
+import { colorStaff } from './owner-colors.mjs?v=staffColors12';
+import { mountCaseReference, workKinds, assignmentsFor } from './case-reference.mjs?v=staffColors12';
 const $=id=>document.getElementById(id);
 const el=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const percent=new Intl.NumberFormat('zh-TW',{style:'percent',maximumFractionDigits:1});
@@ -48,7 +49,8 @@ export function mountWorkload(edit,referenceApi){
    const label=name||'未分派',ratio=total?count/total:0;
    const track=el('span',null,'wl-track'),fill=el('span',null,'wl-fill');
    fill.style.width=(ratio*100)+'%';track.setAttribute('aria-hidden','true');track.append(fill);
-   row.append(el('span',label,'wl-person'),track,el('strong',new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}).format(count)+' 項 · '+(total?percent.format(ratio):'—'),'wl-count'));
+   const person=el('span',label,'wl-person');colorStaff(person,name,model.roster??[]);colorStaff(fill,name,model.roster??[]);
+   row.append(person,track,el('strong',new Intl.NumberFormat('zh-TW',{maximumFractionDigits:2}).format(count)+' 項 · '+(total?percent.format(ratio):'—'),'wl-count'));
    row.onclick=()=>{filter=filter===value?'all':value;select.value=filter;drawRows();markShares();};
    row.dataset.filter=value;container.append(row);
   }
@@ -70,7 +72,8 @@ export function mountWorkload(edit,referenceApi){
     }
     const kindsCell=el('td');
     if(kinds.length){const tags=el('div',null,'wl-kind-tags');tags.append(...kinds.map(k=>el('span',k,'wl-kind-tag')));kindsCell.append(tags);}else kindsCell.textContent='未分類';
-    tr.append(el('td',owner||'未分派',owner?'':'wl-pending'),kindsCell);fragment.append(tr);
+    const ownerCell=el('td'),ownerName=el('span',owner||'未分派',owner?'wl-owner-pill':'wl-pending');colorStaff(ownerName,owner,model.roster??[]);ownerCell.append(ownerName);
+    tr.append(ownerCell,kindsCell);fragment.append(tr);
    });
   }
   target.append(fragment);

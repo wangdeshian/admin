@@ -1,5 +1,6 @@
+import { colorStaff } from './owner-colors.mjs?v=staffColors12';
 import { connect } from './sync.mjs?v=canvas1';
-import { checkedReference, workKinds, assignmentsFor } from './case-reference.mjs?v=multiOwner11';
+import { checkedReference, workKinds, assignmentsFor } from './case-reference.mjs?v=staffColors12';
 const $=id=>document.getElementById(id);
 const E=(tag,txt,cls)=>{const n=document.createElement(tag);if(txt!=null)n.textContent=txt;if(cls)n.className=cls;return n;};
 const NS='http://www.w3.org/2000/svg';
@@ -135,14 +136,14 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
  });}
  function fillOwners(select,value){
   select.replaceChildren(new Option('未指定',''),...draftRoster.map(n=>new Option(n,n)));
-  select.value=value;
+  select.value=value;colorStaff(select,select.value,draftRoster);
  }
  function appendWork(value='',responsibilities=[]){
   const row=E('div',null,'cv-work-row'),input=E('input',null,'cv-task-input'),right=E('div',null,'cv-assignment-area'),list=E('div',null,'cv-assignment-list');
   input.type='text';input.value=value;input.maxLength=1600;input.placeholder='輸入工作項目';
   function appendAssignment(owner='',kinds=[]){
    const slot=E('div',null,'cv-assignment'),top=E('div',null,'cv-assignment-top'),select=E('select');
-   fillOwners(select,owner);
+   fillOwners(select,owner);select.addEventListener('change',()=>colorStaff(select,select.value,draftRoster));
    const picker=E('details',null,'cv-kind-picker'),preview=E('summary'),checks=E('div',null,'cv-kind-options');
    const refresh=()=>{const values=Array.from(checks.querySelectorAll('input:checked'),b=>b.value);preview.textContent=values.length?'對應大類：'+values.join('、'):'選擇對應大類';};
    for(const k of workKinds){
@@ -151,7 +152,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
    }
    picker.append(preview,checks);refresh();
    const remove=act('×',()=>{
-    if(list.children.length===1){select.value='';for(const b of checks.querySelectorAll('input'))b.checked=false;refresh();picker.open=false;select.focus();return;}
+    if(list.children.length===1){select.value='';colorStaff(select,'',draftRoster);for(const b of checks.querySelectorAll('input'))b.checked=false;refresh();picker.open=false;select.focus();return;}
     const next=slot.nextElementSibling??slot.previousElementSibling;slot.remove();labelRows();next.querySelector('select').focus();
    },'cv-assignment-remove');
    top.append(select,remove);slot.append(top,picker);list.append(slot);labelRows();return select;
@@ -371,7 +372,7 @@ export function mountCanvas(seed,{onChange=()=>{},onStatus=()=>{}}={}){
      for(const {owner,kinds} of assignmentsFor(c,i)){
       if(!owner&&!kinds.length)continue;
       const assignment=E('div',null,'cv-card-assignment');
-      assignment.append(E('small',owner?'行政：'+owner:'未指定行政','cv-owner-tag'));
+      const label=E('small',owner?'行政：'+owner:'未指定行政','cv-owner-tag');colorStaff(label,owner,model.roster??[]);assignment.append(label);
       if(kinds.length){
        const labels=E('div',null,'cv-card-kinds');labels.setAttribute('aria-label','對應大類');
        for(const kind of kinds)labels.append(E('span',kind,'cv-card-kind'));assignment.append(labels);
